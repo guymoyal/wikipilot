@@ -1,0 +1,15 @@
+node_modules
+dist
+wiki
+*.log
+.DS_Store
+.wrangler
+.dev.vars
+.env
+
+# Business/strategy planning — deliberately not published. See docs/ for the
+# public technical docs.
+private/
+
+# npm pack output
+*.tgz

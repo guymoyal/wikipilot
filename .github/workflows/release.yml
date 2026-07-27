@@ -1,0 +1,94 @@
+name: Release checks
+
+# Deliberately does NOT publish. Publishing happens from a maintainer's machine
+# with `npm publish`, so no long-lived npm credential exists in this repo or in
+# GitHub's secret store. This workflow's job is to prove a tag is publishable.
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x, 22.x]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+
+  package:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Check the tag matches package.json
+        if: github.event_name == 'push'
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "::error::tag v$TAG does not match package.json version $PKG"
+            exit 1
+          fi
+          echo "tag and package.json agree on $PKG"
+
+      - name: Verify the tarball contains the built CLI
+        run: |
+          npm pack --dry-run
+          npm pack --dry-run --json > /tmp/pack.json
+          # `dist` is in .gitignore; if the files allowlist ever stops overriding
+          # that, this catches it here instead of on a user's machine.
+          node -e "
+            const files = require('/tmp/pack.json')[0].files.map(f => f.path);
+            const required = [
+              'dist/bin/wikipilot.js',
+              'dist/lib/index.js',
+              'dist/lib/site/assets/theme.css',
+              'dist/lib/site/assets/client.js',
+              'dist/lib/site/assets/minisearch.js',
+            ];
+            const missing = required.filter(f => !files.includes(f));
+            if (missing.length) {
+              console.error('missing from tarball:', missing.join(', '));
+              process.exit(1);
+            }
+            console.log('tarball OK —', files.length, 'files');
+          "
+
+      - name: Install the packed tarball and run it end to end
+        run: |
+          npm pack
+          TARBALL="$(ls wikipilot-*.tgz)"
+          mkdir -p /tmp/smoke && cd /tmp/smoke
+          npm init -y > /dev/null
+          npm install "$GITHUB_WORKSPACE/$TARBALL"
+          ./node_modules/.bin/wikipilot --version
+          # Non-interactive: must pick a preset instead of waiting on a prompt.
+          ./node_modules/.bin/wikipilot init . --preset user-guide -o ./wiki < /dev/null
+          ./node_modules/.bin/wikipilot build ./wiki -o ./wiki-dist
+          test -f ./wiki-dist/index.html || { echo "build produced no index.html"; exit 1; }
+          echo "smoke test passed"
+
+      - name: How to publish
+        run: |
+          echo "::notice::Checks passed. Publish from your machine: npm publish"

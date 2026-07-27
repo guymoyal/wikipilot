@@ -1,0 +1,10 @@
+packages:
+  - '.'
+  - 'site'
+  - 'cloud'
+allowBuilds:
+  esbuild: true
+  sharp: true
+  workerd: true
+minimumReleaseAgeExclude:
+  - '@anthropic-ai/sdk@0.112.4'

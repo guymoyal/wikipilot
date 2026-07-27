@@ -1,0 +1,65 @@
+{
+  "name": "wikipilot",
+  "version": "0.1.0",
+  "description": "Generate a documentation wiki from your codebase. Every page records the source files it was built from, so you can see which docs have drifted from the code.",
+  "keywords": [
+    "wiki",
+    "documentation",
+    "docs",
+    "documentation-generator",
+    "docs-generator",
+    "static-site-generator",
+    "cli",
+    "codebase",
+    "markdown",
+    "mermaid",
+    "developer-tools",
+    "claude-code"
+  ],
+  "homepage": "https://wikipilot.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/guymoyal/wikipilot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/guymoyal/wikipilot/issues"
+  },
+  "author": "Guy Moyal <guysites1@gmail.com>",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "wikipilot": "./dist/bin/wikipilot.js"
+  },
+  "main": "./dist/lib/index.js",
+  "types": "./dist/lib/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && mkdir -p dist/lib/site/assets && cp -R src/lib/site/assets/. dist/lib/site/assets/",
+    "dev": "tsc -p tsconfig.json --watch",
+    "dev:site": "pnpm --filter wikipilot-site dev",
+    "dev:cloud": "pnpm --filter wikipilot-cloud dev",
+    "start": "node ./dist/bin/wikipilot.js",
+    "test": "node --import tsx --test test/*.test.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.112.4",
+    "commander": "^12.1.0",
+    "markdown-it": "^14.3.0",
+    "minisearch": "^7.2.0"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^20.14.10",
+    "tsx": "^4.23.1",
+    "typescript": "^5.6.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
