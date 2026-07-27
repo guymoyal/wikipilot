@@ -24,6 +24,7 @@
   "bugs": {
     "url": "https://github.com/guymoyal/wikipilot/issues"
   },
+  "funding": "https://buymeacoffee.com/guymo",
   "author": "Guy Moyal <guysites1@gmail.com>",
   "license": "MIT",
   "type": "module",

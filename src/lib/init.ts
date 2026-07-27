@@ -21,6 +21,8 @@ export interface InitResult {
   preset: WikiPreset;
   sections: string[];
   siteName: string;
+  /** The documented project's version, if it has a package.json. */
+  version?: string;
   skillPath?: string;
 }
 
@@ -29,18 +31,17 @@ export interface InitResult {
  * `my-app` reads better as "My App" in a site header, and `--site-name` is there
  * for anyone who disagrees.
  */
-function deriveSiteName(targetDir: string): string {
-  let raw = basename(resolve(targetDir));
-
+function readPackageJson(targetDir: string): { name?: string; version?: string } {
   try {
-    const pkg = JSON.parse(readFileSync(join(targetDir, "package.json"), "utf8"));
-    if (typeof pkg.name === "string" && pkg.name.trim()) {
-      raw = pkg.name.replace(/^@[^/]+\//, ""); // drop the npm scope
-    }
+    return JSON.parse(readFileSync(join(targetDir, "package.json"), "utf8"));
   } catch {
-    // No package.json, or it's unreadable — the directory name is a fine fallback.
+    return {};
   }
+}
 
+function deriveSiteName(targetDir: string, pkgName?: string): string {
+  // Drop the npm scope: "@acme/billing-service" reads better as "Billing Service".
+  const raw = pkgName?.trim() ? pkgName.replace(/^@[^/]+\//, "") : basename(resolve(targetDir));
   const words = raw.replace(/[-_.]+/g, " ").trim();
   return words.replace(/\b\w/g, (c) => c.toUpperCase()) || "Wiki";
 }
@@ -53,8 +54,10 @@ export function init(options: InitOptions): InitResult {
     throw new Error(`Source directory does not exist: ${targetDir}`);
   }
 
-  const siteName = options.siteName ?? deriveSiteName(targetDir);
-  const config = { ...configForPreset(preset), siteName };
+  const pkg = readPackageJson(targetDir);
+  const siteName = options.siteName ?? deriveSiteName(targetDir, pkg.name);
+  const version = typeof pkg.version === "string" ? pkg.version : undefined;
+  const config = { ...configForPreset(preset), siteName, ...(version ? { version } : {}) };
 
   mkdirSync(wikiDir, { recursive: true });
   writeConfig(wikiDir, config);
@@ -72,5 +75,5 @@ export function init(options: InitOptions): InitResult {
 
   const skillPath = options.skipSkill ? undefined : scaffoldUpdateWikiSkill(targetDir, wikiDir, config);
 
-  return { pagesWritten, wikiDir, preset, sections: config.sections, siteName, skillPath };
+  return { pagesWritten, wikiDir, preset, sections: config.sections, siteName, version, skillPath };
 }

@@ -71,9 +71,10 @@ function renderSidebar(groups: SidebarGroup[], currentUrl: string, basePath: str
     .join("");
 }
 
-function renderHeader(siteName: string, base: string, localeSwitcherHtml: string): string {
+function renderHeader(siteName: string, base: string, localeSwitcherHtml: string, version?: string): string {
+  const versionBadge = version ? `<span class="brand-version">v${esc(version)}</span>` : "";
   return `<header class="site-header">
-    <a class="brand" href="${esc(base)}">${brandMark(siteName)}<span>${esc(siteName)}</span></a>
+    <a class="brand" href="${esc(base)}">${brandMark(siteName)}<span>${esc(siteName)}</span>${versionBadge}</a>
     <div class="search-box">
       <input type="text" placeholder="Search the wiki..." autocomplete="off" />
       <kbd class="search-kbd">⌘K</kbd>
@@ -95,6 +96,8 @@ export interface AgentTarget {
 
 export interface RenderOptions {
   siteName: string;
+  /** The documented project's version, shown next to the wiki name. */
+  version?: string;
   basePath: string;
   locales: string[];
   defaultLocale: string;
@@ -125,7 +128,7 @@ function renderLocaleSwitcher(page: LoadedPage, options: RenderOptions, base: st
   return `<div class="locale-switcher">${links}</div>`;
 }
 
-export function renderIndexHtml(sidebar: SidebarGroup[], siteName: string, locale = "en", dir: "ltr" | "rtl" = "ltr", agent?: AgentTarget): string {
+export function renderIndexHtml(sidebar: SidebarGroup[], siteName: string, locale = "en", dir: "ltr" | "rtl" = "ltr", agent?: AgentTarget, version?: string): string {
   const agentAttr = agentAttrs(agent);
   const localePrefix = new RegExp(`^/${locale}/`);
   const pageCount = sidebar.reduce((n, group) => n + group.pages.length, 0);
@@ -158,7 +161,7 @@ export function renderIndexHtml(sidebar: SidebarGroup[], siteName: string, local
 <link rel="stylesheet" href="assets/theme.css" />
 </head>
 <body data-base=""${agentAttr}>
-${renderHeader(siteName, "", "")}
+${renderHeader(siteName, "", "", version)}
 <main class="hero-page">
   <section class="hero">
     <div class="hero-copy">
@@ -204,7 +207,7 @@ export function renderPageHtml(page: LoadedPage, sidebar: SidebarGroup[], option
 <link rel="stylesheet" href="${esc(base)}assets/theme.css" />
 </head>
 <body data-base="${esc(base)}"${agentAttr}>
-${renderHeader(options.siteName, base, renderLocaleSwitcher(page, options, base))}
+${renderHeader(options.siteName, base, renderLocaleSwitcher(page, options, base), options.version)}
 <div class="layout">
   <nav class="sidebar">
     ${renderSidebar(sidebar, page.urlPath, base)}
@@ -215,7 +218,7 @@ ${renderHeader(options.siteName, base, renderLocaleSwitcher(page, options, base)
     <article${page.fallback ? ' dir="ltr"' : ""}>
       ${bodyHtml}
     </article>
-    <p class="page-meta" dir="ltr">Sources: ${page.frontmatter.sources.map((s) => `<code>${esc(s)}</code>`).join(", ")} · last synced <code>${esc(page.frontmatter.last_synced)}</code></p>
+    <p class="page-meta" dir="ltr">Sources: ${page.frontmatter.sources.map((s) => `<code>${esc(s)}</code>`).join(", ")} · last synced <code>${esc(page.frontmatter.last_synced)}</code>${page.frontmatter.version ? ` · version <code>${esc(page.frontmatter.version)}</code>` : ""}</p>
   </main>
 </div>
 <script src="${esc(base)}assets/minisearch.js"></script>

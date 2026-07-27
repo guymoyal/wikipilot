@@ -51,9 +51,12 @@ order: 2                 # optional; controls sidebar position
 sources:                 # repo globs this page documents
   - packages/publish-service/**
 last_synced: "d70bf9ba"  # commit SHA when prose was last verified against sources
+version: "1.4.0"         # the project's package.json version at that moment
 stale: false             # true when sources changed and prose wasn't confidently patched
 ---
 \`\`\`
+
+\`last_synced\` and \`version\` answer different questions. The SHA is what you diff against; the version is what a reader recognises ("this documents 1.4, we're on 2.0"). Whenever you re-stamp one, re-stamp the other.
 
 \`sources\` is the contract. A page with vague sources (\`**/*\`) can never be checked for drift, and a page with no sources is invisible to every mode below. Always set the narrowest globs that actually cover the page.
 
@@ -70,7 +73,7 @@ Read the code before you write the page. Not the filenames — the code.
 ${sectionGuidance(config.sections)}
 
 4. **Write the page.** Lead with what the thing does and why it exists, before how it works. Concrete names, real paths, real commands.
-5. **Stamp it**: \`last_synced\` = \`git rev-parse --short HEAD\`, \`stale: false\`, and a one-line \`description\` (it's the search/preview text and the sidebar blurb).
+5. **Stamp it**: \`last_synced\` = \`git rev-parse --short HEAD\`, \`version\` = the project's current \`package.json\` version, \`stale: false\`, and a one-line \`description\` (it's the search/preview text and the sidebar blurb).
 6. **Verify** with \`wikipilot build ${relWikiDir}\` before finishing.
 
 ### Code examples — pull them, don't write them
@@ -134,13 +137,14 @@ The renderer is markdown-it with **raw HTML disabled** and no syntax-highlightin
    \`git diff --name-only <last_synced>..HEAD -- <sources>\`
    Pages with no matching diff are unchanged — skip them and leave their SHA alone (an old SHA is honest information, not a bug).
 2. For each page with real diffs: read the actual changed source files (never guess or "clean up" prose without reading the code). Either:
-   - **Confidently patch** the prose, snippets, and diagrams to match reality, then bump \`last_synced\` to \`git rev-parse --short HEAD\` and clear \`stale\`.
+   - **Confidently patch** the prose, snippets, and diagrams to match reality, then bump \`last_synced\` to \`git rev-parse --short HEAD\`, set \`version\` to the current \`package.json\` version, and clear \`stale\`.
    - If you can't confidently patch it, set \`stale: true\` and leave a one-line note in the page body about what changed, so a human sees a visible "may be outdated" banner instead of silently-wrong docs.
 3. Re-read every snippet's \`title="<path>"\` file and every diagram's underlying code — those drift the fastest and are the most confidently wrong when they do.
 4. If \`wikipilot.config.json\` declares \`sourcesOfTruth\` (e.g. a service registry file), check whether new entities there (services, agents, tables) have no covering page yet. If so, author a page for each via Mode 1.
 5. If this repo has more than one locale configured (\`wikipilot.config.json\` → \`locales\`), and a page you just patched has a translated mirror at \`content/<other-locale>/<section>/<slug>.md\`, re-translate the affected parts of that mirror too (prose only — code, paths, and commands stay verbatim).
-6. Run \`wikipilot build ${relWikiDir}\` as a correctness check before finishing.
-7. Land the result as a small, reviewable commit/PR (don't push automatically) — a human should eyeball AI-updated docs before they merge.
+6. If the project's \`package.json\` version has moved on, update \`version\` in \`${relWikiDir}/wikipilot.config.json\` too — that's what the wiki header displays.
+7. Run \`wikipilot build ${relWikiDir}\` as a correctness check before finishing.
+8. Land the result as a small, reviewable commit/PR (don't push automatically) — a human should eyeball AI-updated docs before they merge.
 
 ---
 

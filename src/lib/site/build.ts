@@ -36,6 +36,7 @@ export function buildSite(options: BuildOptions): BuildResult {
   // Explicit flag wins, then whatever `init` derived from the project, then a
   // last-resort generic name.
   const siteName = options.siteName ?? config.siteName ?? "Wiki";
+  const version = config.version;
   const pages = loadWikiContent(wikiDir, config);
   const defaultLocale = config.locales[0] ?? "en";
 
@@ -56,12 +57,12 @@ export function buildSite(options: BuildOptions): BuildResult {
     if (!hasRoot) {
       const rootPath = locale === defaultLocale ? join(outDir, "index.html") : join(outDir, locale, "index.html");
       mkdirSync(dirname(rootPath), { recursive: true });
-      writeFileSync(rootPath, renderIndexHtml(sidebar, siteName, locale, localeDir(locale), options.agent), "utf8");
+      writeFileSync(rootPath, renderIndexHtml(sidebar, siteName, locale, localeDir(locale), options.agent, version), "utf8");
       pagesBuilt++;
     }
 
     for (const page of localePages) {
-      const html = renderPageHtml(page, sidebar, { siteName, basePath: "", locales: config.locales, defaultLocale, agent: options.agent });
+      const html = renderPageHtml(page, sidebar, { siteName, version, basePath: "", locales: config.locales, defaultLocale, agent: options.agent });
       const relPath = page.urlPath.replace(/^\//, "");
       const filePath = relPath === "" ? join(outDir, "index.html") : join(outDir, relPath, "index.html");
       mkdirSync(dirname(filePath), { recursive: true });

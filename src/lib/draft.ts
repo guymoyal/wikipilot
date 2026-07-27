@@ -14,6 +14,7 @@ export interface DraftedPage {
 
 interface PackageJson {
   name?: string;
+  version?: string;
   description?: string;
   scripts?: Record<string, string>;
   dependencies?: Record<string, string>;
@@ -598,5 +599,13 @@ export function draftContent(targetDir: string, preset: WikiPreset = DEFAULT_PRE
   ];
 
   const wanted = new Set(sectionsForPreset(preset));
-  return drafted.filter((page) => wanted.has(page.section));
+
+  // Stamped in one place rather than by each drafter: a commit SHA says when a
+  // page was verified, but a release version says *against what* — which is the
+  // number a reader recognises. Done here so a new drafter can't forget it.
+  return drafted
+    .filter((page) => wanted.has(page.section))
+    .map((page) =>
+      pkg?.version ? { ...page, frontmatter: { ...page.frontmatter, version: pkg.version } } : page,
+    );
 }

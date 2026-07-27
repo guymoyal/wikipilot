@@ -5,6 +5,8 @@ export interface PageFrontmatter {
   order?: number;
   sources: string[];
   last_synced: string;
+  /** The project's package.json version when this page was last verified. */
+  version?: string;
   stale?: boolean;
   locale?: string;
 }
@@ -23,6 +25,7 @@ export function stringifyFrontmatter(fm: PageFrontmatter): string {
   lines.push("sources:");
   for (const src of fm.sources) lines.push(`  - ${yamlScalar(src)}`);
   lines.push(`last_synced: ${yamlScalar(fm.last_synced)}`);
+  if (fm.version) lines.push(`version: ${yamlScalar(fm.version)}`);
   if (fm.stale !== undefined) lines.push(`stale: ${fm.stale}`);
   if (fm.locale) lines.push(`locale: ${yamlScalar(fm.locale)}`);
   return lines.join("\n");
@@ -85,6 +88,8 @@ export function parseFrontmatter(fileContents: string): { frontmatter: PageFront
     sources: Array.isArray(result.sources) ? (result.sources as string[]) : [],
     last_synced: String(result.last_synced ?? ""),
     ...(result.description ? { description: String(result.description) } : {}),
+    // Versions like "1.0" parse as numbers, so coerce rather than type-check.
+    ...(result.version !== undefined && result.version !== "" ? { version: String(result.version) } : {}),
     ...(typeof result.order === "number" ? { order: result.order } : {}),
     ...(typeof result.stale === "boolean" ? { stale: result.stale } : {}),
     ...(result.locale ? { locale: String(result.locale) } : {}),

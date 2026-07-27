@@ -12,6 +12,8 @@ export interface WikipilotConfig {
   preset: WikiPreset;
   /** Shown in the built site's header. Derived at init time; `--site-name` overrides it. */
   siteName?: string;
+  /** The documented project's package.json version, captured at init and refreshed on sync. */
+  version?: string;
   sections: string[];
   locales: string[];
   sourcesOfTruth: string[];

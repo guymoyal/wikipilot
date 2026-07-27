@@ -82,16 +82,24 @@ title: The Publish Pipeline
 section: how-it-works
 sources:
   - packages/publish-service/**
-last_synced: "d70bf9ba"
+last_synced: "d70bf9ba"   # commit the prose was verified against
+version: "1.4.0"          # your package.json version at that moment
 stale: false
 ---
 ```
+
+`last_synced` and `version` answer different questions. The SHA is what drift is
+diffed against; the version is what a reader recognises — "this documents 1.4,
+we shipped 2.0". `init` stamps both, and the bundled sync skill refreshes both.
+The version also appears next to the wiki's name in the header.
 
 `wikipilot.config.json` (scaffolded by `init`) records the preset and controls sections, locales, and any repo-specific "sources of truth" files for drift detection:
 
 ```json
 {
   "preset": "technical",
+  "siteName": "Billing Service",
+  "version": "1.4.0",
   "sections": ["start-here", "how-it-works", "technologies", "reference", "cookbook"],
   "locales": ["en"],
   "sourcesOfTruth": []
@@ -152,6 +160,11 @@ See `docs/` for architecture, product framing, and the phased roadmap —
 
 Loopback-only by default for both `serve` and `agent`. Report vulnerabilities
 privately — see [SECURITY.md](SECURITY.md).
+
+## Support
+
+wikipilot is free and MIT-licensed, and stays that way. If it saved you an
+afternoon of writing docs, you can [buy me a coffee](https://buymeacoffee.com/guymo).
 
 ## License
 

@@ -146,6 +146,53 @@ test("an explicit --site-name overrides the derived one", () => {
   }
 });
 
+test("init stamps the project's package.json version onto every page and the config", () => {
+  const targetDir = mkdtempSync(join(tmpdir(), "wikipilot-version-"));
+  const wikiDir = join(targetDir, "wiki");
+  try {
+    writeFileSync(join(targetDir, "package.json"), JSON.stringify({ name: "billing", version: "2.3.1" }));
+    const result = init({ targetDir, wikiDir, preset: "user-guide" });
+
+    assert.equal(result.version, "2.3.1");
+
+    const config = JSON.parse(readFileSync(join(wikiDir, "wikipilot.config.json"), "utf8"));
+    assert.equal(config.version, "2.3.1", "the header reads the version from config");
+
+    const page = readFileSync(join(wikiDir, "content", "en", "getting-started", "installation.md"), "utf8");
+    const { frontmatter } = parseFrontmatter(page);
+    assert.equal(frontmatter.version, "2.3.1", "and every drafted page carries it too");
+  } finally {
+    rmSync(targetDir, { recursive: true, force: true });
+  }
+});
+
+test("a version like 1.0 survives the frontmatter round-trip as a string", () => {
+  const targetDir = mkdtempSync(join(tmpdir(), "wikipilot-version2-"));
+  const wikiDir = join(targetDir, "wiki");
+  try {
+    // Unquoted `1.0` would otherwise parse back as the number 1.
+    writeFileSync(join(targetDir, "package.json"), JSON.stringify({ name: "x", version: "1.0" }));
+    init({ targetDir, wikiDir });
+    const raw = readFileSync(join(wikiDir, "content", "en", "start-here", "overview.md"), "utf8");
+    assert.equal(parseFrontmatter(raw).frontmatter.version, "1.0");
+  } finally {
+    rmSync(targetDir, { recursive: true, force: true });
+  }
+});
+
+test("a project with no version in package.json omits the field entirely", () => {
+  const targetDir = makeFixtureRepo(); // fixture has no `version`
+  const wikiDir = join(targetDir, "wiki");
+  try {
+    const result = init({ targetDir, wikiDir });
+    assert.equal(result.version, undefined);
+    const raw = readFileSync(join(wikiDir, "content", "en", "start-here", "overview.md"), "utf8");
+    assert.ok(!/^version:/m.test(raw), "no empty version line in the frontmatter");
+  } finally {
+    rmSync(targetDir, { recursive: true, force: true });
+  }
+});
+
 test("init throws a clean error for a non-existent target directory", () => {
   const targetDir = join(tmpdir(), "wikipilot-init-does-not-exist-" + Math.random().toString(36).slice(2));
   assert.throws(() => init({ targetDir, wikiDir: join(targetDir, "wiki") }), /does not exist/);
