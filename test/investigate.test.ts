@@ -281,6 +281,31 @@ test("progress goes only through the injected reporter", async () => {
   }
 });
 
+test("re-reads and lockfiles are refused cheaply instead of resending content", async () => {
+  const fx = makeFixture();
+  try {
+    writeFileSync(join(fx.targetDir, "package-lock.json"), "{}", "utf8");
+    const { createMessage, requests } = scripted([
+      message([toolUse("read_file", { path: "src/index.ts" })]),
+      message([
+        toolUse("read_file", { path: "src/index.ts" }),
+        toolUse("read_file", { path: "package-lock.json" }),
+      ]),
+      message([toolUse("finish", { summary: "done" })]),
+    ]);
+    await investigate({ targetDir: fx.targetDir, wikiDir: fx.wikiDir, config: configForPreset("all"), createMessage });
+
+    const results = (requests[2].messages.at(-1)?.content ?? []) as Anthropic.ToolResultBlockParam[];
+    assert.equal(results[0].is_error, true);
+    assert.match(String(results[0].content), /already read/);
+    assert.doesNotMatch(String(results[0].content), /hello/, "content must not be resent");
+    assert.equal(results[1].is_error, true);
+    assert.match(String(results[1].content), /lockfile or generated/);
+  } finally {
+    rmSync(fx.outerDir, { recursive: true, force: true });
+  }
+});
+
 test("each request cache-marks only the newest message; stored history stays clean", async () => {
   const fx = makeFixture();
   try {

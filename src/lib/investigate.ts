@@ -148,6 +148,9 @@ function isIgnoredName(name: string): boolean {
   return DEFAULT_IGNORE.has(name) || name.startsWith(".");
 }
 
+/** Lockfiles and build artifacts burn the read budget without teaching anything. */
+const GENERATED_FILE = /^(package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|composer\.lock|Cargo\.lock|Gemfile\.lock|poetry\.lock|go\.sum)$|\.(min\.js|min\.css|map|lock)$/;
+
 function looksBinary(buffer: Buffer): boolean {
   return buffer.subarray(0, 8192).includes(0);
 }
@@ -178,7 +181,8 @@ export function buildSystemPrompt(config: WikipilotConfig, facts: { sha: string;
 
 ## Tools contract
 
-- Explore with list_dir, read_file, and grep. Reads are budgeted: read selectively, never re-read a file, and when a tool result warns that the budget is exhausted, stop exploring and write from what you have.
+- Explore with list_dir, read_file, and grep. Reads are budgeted: read selectively, never re-read a file, skip lockfiles and generated bundles, and when a tool result warns that the budget is exhausted, stop exploring and write from what you have.
+- Batch independent tool calls into a single turn — request several reads at once instead of one per turn. Fewer turns means a faster, cheaper run.
 - Pages are produced ONLY through write_page. Writing to an existing section/slug replaces the draft page (keep the drafted slugs to keep their URLs). Never print page content as plain text.
 - When you call finish, every draft page you did NOT rewrite is deleted — the wiki becomes exactly the set of pages you wrote. If a drafted page covers something worth keeping, rewrite it properly; otherwise let it go.
 - When the wiki is complete, call finish with a short summary. Do not stop before calling finish.
@@ -311,12 +315,20 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
     return { content: lines.join("\n") || "(empty)" };
   }
 
+  const alreadyRead = new Set<string>();
+
   function runReadFile(input: { path: string }): ToolOutcome {
     if (readBudget <= 0) {
       return { content: "read budget exhausted — write the wiki from what you have already read", isError: true };
     }
     const real = resolveInsideRoot(targetDir, input.path);
     if (!real) return { content: `path escapes the repository root: ${input.path}`, isError: true };
+    if (alreadyRead.has(real)) {
+      return { content: `already read ${input.path} this session — its content is in your context; use what you have`, isError: true };
+    }
+    if (GENERATED_FILE.test(real.split(sep).pop() ?? "")) {
+      return { content: `${input.path} is a lockfile or generated artifact — not worth the read budget`, isError: true };
+    }
     let buffer: Buffer;
     try {
       buffer = readFileSync(real);
@@ -324,6 +336,7 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
       return { content: `cannot read ${input.path}: ${err instanceof Error ? err.message : String(err)}`, isError: true };
     }
     if (looksBinary(buffer)) return { content: `${input.path} is a binary file`, isError: true };
+    alreadyRead.add(real);
     const truncated = buffer.length > MAX_FILE_BYTES;
     const text = buffer.subarray(0, MAX_FILE_BYTES).toString("utf8");
     const numbered = text
@@ -369,7 +382,7 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
         }
         if (stat.isDirectory()) {
           walk(full);
-        } else if (stat.isFile() && stat.size <= 512 * 1024 && (!nameFilter || nameFilter.test(name))) {
+        } else if (stat.isFile() && stat.size <= 512 * 1024 && !GENERATED_FILE.test(name) && (!nameFilter || nameFilter.test(name))) {
           let buffer: Buffer;
           try {
             buffer = readFileSync(full);
