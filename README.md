@@ -34,7 +34,7 @@ For repeat use:
 npm install -g wikipilot
 ```
 
-Requires Node.js 18 or newer. Nothing else — no config file, no account, no key.
+Requires Node.js 18 or newer. Nothing else — no config file, no account. An Anthropic API key is optional: with one, `init` can also run a deep-investigation pass where a Claude agent reads your code and rewrites the drafted pages from what it finds.
 
 ## The whole loop
 
@@ -60,13 +60,25 @@ It doesn't scaffold empty placeholders: pages are drafted from your `package.jso
 
 It also writes a `.claude/skills/update-wiki` skill so Claude Code can author new pages and keep existing ones in sync — ask it to "update the wiki" or "audit the wiki".
 
-> **No API key needed for any of the above.** `init`, `build`, and `serve` are fully local. An `ANTHROPIC_API_KEY` is only needed for the optional `wikipilot agent` chat widget — see [The AI assistant](#the-ai-assistant) below.
+> **Everything above works without an API key.** `init`, `build`, and `serve` are fully local. Add an `ANTHROPIC_API_KEY` and `init` offers its deep-investigation pass — see [The AI deep investigation](#the-ai-deep-investigation) next. The same key powers the optional `wikipilot agent` chat widget — see [The AI assistant](#the-ai-assistant) below.
+
+## The AI deep investigation
+
+The mechanical draft is a floor: it comes from your `package.json` and README, so it can't explain how the code actually works. With an API key, `init` follows up with an investigation pass — a Claude agent (default model `claude-sonnet-5`) lists, reads, and greps your repository, traces the primary flow, then rewrites the drafted pages from what it found: real architecture pages with Mermaid diagrams, code snippets copied from actual files and captioned with their paths, dependency pages that cite the code importing them. Expect it to take a few minutes on a mid-size repo; every page it writes carries the same `sources` + `last_synced` contract as the draft.
+
+On an interactive terminal `init` asks before running it. No key in your environment or the repo's `.env`? It prompts for one (input hidden) and offers to save it to `.env`, keeping `.env` gitignored.
+
+- `--ai` — run the pass without asking (in CI: requires the key in the environment).
+- `--no-ai` — skip it, and the question.
+- `--model <name>` — pick the model; `WIKI_INIT_MODEL` works too.
+
+If the pass fails mid-run — network, rate limit, whatever — the drafted wiki is already on disk, so you lose nothing.
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `wikipilot init [target] -o <dir>` | Scan `target` (default `.`) and draft wiki content into `<dir>` (default `./wiki`). `--preset <technical\|user-guide\|all>` skips the prompt, `--yes` takes the default, `--no-skill` skips the Claude Code skill scaffold. |
+| `wikipilot init [target] -o <dir>` | Scan `target` (default `.`) and draft wiki content into `<dir>` (default `./wiki`). `--preset <technical\|user-guide\|all>` skips the prompt, `--yes` takes the default, `--no-skill` skips the Claude Code skill scaffold, `--ai`/`--no-ai`/`--model <name>` control the deep-investigation pass. |
 | `wikipilot build [wikiDir] -o <dir> --site-name <name>` | Render content into static HTML. `--agent-port <n>` points the chat widget at a local agent server; `--agent-url <url>` points it at a hosted one. |
 | `wikipilot serve [dir] -p <port>` | Preview a built site locally (default port 4400, loopback only). |
 | `wikipilot agent [wikiDir] -p <port> --model <name>` | Run the "ask the wiki" assistant server (default port 4402, loopback only). Needs `ANTHROPIC_API_KEY` in the environment or a repo-root `.env` — without it, the widget shows a setup message instead of failing silently. Use `--host` and `--allow-origin` to expose it deliberately. |

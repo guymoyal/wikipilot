@@ -1,23 +1,9 @@
 import { createServer, type Server } from "node:http";
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 import MiniSearch from "minisearch";
 import { readConfig } from "../config.js";
+import { loadDotEnv } from "../env.js";
 import { loadWikiContent, resolveLocalePages, type LoadedPage } from "./loadContent.js";
-
-function loadDotEnv(repoRoot: string): void {
-  const path = join(repoRoot, ".env");
-  if (!existsSync(path)) return;
-  for (const line of readFileSync(path, "utf8").split("\n")) {
-    const match = /^\s*([\w.-]+)\s*=\s*(.*)\s*$/.exec(line);
-    if (!match) continue;
-    const [, key, rawValue] = match;
-    if (process.env[key] !== undefined) continue;
-    const value = rawValue.replace(/^["']|["']$/g, "");
-    process.env[key] = value;
-  }
-}
 
 const SEARCH_TOOL: Anthropic.Tool = {
   name: "search_wiki",

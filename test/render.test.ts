@@ -91,3 +91,64 @@ test("a mermaid fence renders as a mermaid block, not a code block", () => {
 
   assert.match(html, /<pre class="mermaid">flowchart LR/);
 });
+
+const ALL_SECTIONS = [
+  "start-here",
+  "getting-started",
+  "guides",
+  "how-it-works",
+  "technologies",
+  "cookbook",
+  "faq",
+  "troubleshooting",
+  "reference",
+];
+
+test("every section card gets an inline SVG icon, including unknown sections", () => {
+  for (const section of [...ALL_SECTIONS, "made-up-section"]) {
+    const p = page({ section, urlPath: `/${section}/a-page/`, frontmatter: { ...page().frontmatter, section } });
+    const html = renderIndexHtml(sidebarFor(p), "Wiki");
+    assert.match(html, /<div class="section-card-icon"><svg /, `section "${section}" must render an SVG icon`);
+  }
+});
+
+test("the site chrome ships no emoji or glyph icons", () => {
+  const p = page();
+  const index = renderIndexHtml(sidebarFor(p), "Wiki");
+  const pageHtml = renderPageHtml(p, sidebarFor(p), renderOptions);
+  const emojiOrGlyph = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}◐💬]/u;
+  assert.doesNotMatch(index, emojiOrGlyph);
+  assert.doesNotMatch(pageHtml, emojiOrGlyph);
+});
+
+test("content pages carry the mobile nav toggle and sidebar marker; the index does not", () => {
+  const p = page();
+  const pageHtml = renderPageHtml(p, sidebarFor(p), renderOptions);
+  assert.match(pageHtml, /class="has-sidebar"/);
+  assert.match(pageHtml, /class="nav-toggle" aria-label="Menu" aria-expanded="false"/);
+
+  const index = renderIndexHtml(sidebarFor(p), "Wiki");
+  assert.doesNotMatch(index, /has-sidebar/);
+});
+
+test("the theme pre-paint script sits in <head> before the stylesheet", () => {
+  for (const html of [renderIndexHtml(sidebarFor(page()), "Wiki"), renderPageHtml(page(), sidebarFor(page()), renderOptions)]) {
+    const script = html.indexOf("wikipilot-theme");
+    const stylesheet = html.indexOf("assets/theme.css");
+    assert.ok(script !== -1, "pre-paint script must be present");
+    assert.ok(script < stylesheet, "the script must run before the stylesheet loads");
+  }
+});
+
+test("mermaid is pinned to an exact version and deferred", () => {
+  const html = renderPageHtml(page(), sidebarFor(page()), renderOptions);
+  assert.match(html, /mermaid@10\.9\.3\/dist\/mermaid\.min\.js" defer/);
+  assert.doesNotMatch(html, /mermaid@10\/dist/);
+});
+
+test("sidebar section headings carry an icon and still escape the section name", () => {
+  const evil = page({ section: "guides", frontmatter: { ...page().frontmatter, section: "guides" } });
+  const html = renderPageHtml(evil, [{ section: `guides${XSS}`, pages: [evil] }], renderOptions);
+  assert.match(html, /<h4><svg /);
+  assert.ok(!html.includes("<img src=x"));
+});

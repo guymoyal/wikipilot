@@ -6,37 +6,58 @@ import { init } from "../lib/init.js";
 import { buildSite } from "../lib/site/build.js";
 import { serveSite } from "../lib/site/serve.js";
 import { startAgentServer } from "../lib/site/agentServer.js";
-import { DEFAULT_PRESET, PRESETS } from "../lib/config.js";
-import { resolvePreset, type PresetOptions } from "../lib/wizard.js";
+import { DEFAULT_PRESET, PRESETS, readConfig } from "../lib/config.js";
+import { resolvePreset, resolveAiPlan, type PresetOptions, type AiOptions, type PromptIO } from "../lib/wizard.js";
+import { loadDotEnv, saveEnvKey } from "../lib/env.js";
+import { investigate, DEFAULT_INIT_MODEL } from "../lib/investigate.js";
 import { readFileSync } from "node:fs";
+import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, "../../package.json"), "utf8"));
 
+const SECRET_QUESTION = /api key/i;
+
 /**
- * Only opens stdin when a prompt is actually going to happen — a non-TTY run
- * resolves without ever creating a readline interface.
+ * Runs `fn` with a PromptIO. Only opens stdin when prompts can actually happen —
+ * a non-TTY run resolves without ever creating a readline interface. Questions
+ * that ask for an API key are masked: the typed characters are swallowed so the
+ * key never lands in the terminal or its scrollback.
  */
-async function askPreset(opts: PresetOptions) {
-  const interactive = Boolean(process.stdin.isTTY) && !opts.yes && !opts.preset;
+async function withPromptIO<T>(interactive: boolean, fn: (io: PromptIO) => Promise<T>): Promise<T> {
   if (!interactive) {
-    return resolvePreset(opts, { interactive: false, ask: async () => "", print: () => {} });
+    return fn({ interactive: false, ask: async () => "", print: () => {} });
   }
 
   const { createInterface } = await import("node:readline/promises");
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  let muted = false;
+  const maskable = new Writable({
+    write(chunk, encoding, callback) {
+      if (!muted) process.stdout.write(chunk, encoding as BufferEncoding);
+      callback();
+    },
+  });
+  const rl = createInterface({ input: process.stdin, output: maskable, terminal: true });
   try {
-    return await resolvePreset(opts, {
+    return await fn({
       interactive: true,
       // Ctrl+D closes stdin and rejects the pending question. Treat that as
       // "cancel", not as a crash.
       ask: async (question) => {
+        const secret = SECRET_QUESTION.test(question);
         try {
-          return await rl.question(question);
+          if (!secret) return await rl.question(question);
+          process.stdout.write(question);
+          muted = true;
+          const answer = await rl.question("");
+          muted = false;
+          process.stdout.write("\n");
+          return answer;
         } catch {
-          throw new Error("cancelled — no wiki was created. Re-run with --preset to skip the prompt.");
+          muted = false;
+          throw new Error("cancelled — re-run with --preset or --no-ai to skip the prompts.");
         }
       },
       print: (line) => console.log(line),
@@ -93,20 +114,56 @@ program
   .option("-o, --out <dir>", "directory to scaffold the wiki into", "./wiki")
   .option("--preset <type>", `wiki type to draft: ${PRESETS.join(" | ")} (skips the prompt)`)
   .option("--site-name <name>", "name shown in the built site's header (defaults to the project name)")
-  .option("-y, --yes", `skip the prompt and use the "${DEFAULT_PRESET}" preset`)
+  .option("-y, --yes", `skip the prompts: "${DEFAULT_PRESET}" preset, no AI pass unless --ai is given`)
   .option("--no-skill", "skip scaffolding the .claude/skills/update-wiki sync skill")
-  .action(async (target: string, opts: { out: string; preset?: string; siteName?: string; yes?: boolean; skill: boolean }) => {
+  .option("--ai", "run the AI deep-investigation pass (needs an Anthropic API key)")
+  .option("--no-ai", "skip the AI pass and the prompt for it")
+  .option("--model <name>", `model for the AI pass (default ${DEFAULT_INIT_MODEL}, or WIKI_INIT_MODEL)`)
+  .action(async (target: string, opts: { out: string; preset?: string; siteName?: string; yes?: boolean; skill: boolean; ai?: boolean; model?: string }) => {
     const targetDir = resolve(process.cwd(), target);
     const wikiDir = resolve(process.cwd(), opts.out);
 
     try {
-      const preset = await askPreset(opts);
-      const result = init({ targetDir, wikiDir, preset, siteName: opts.siteName, skipSkill: !opts.skill });
+      const interactive = Boolean(process.stdin.isTTY) && !opts.yes;
+      const { result, plan } = await withPromptIO(interactive, async (io) => {
+        const preset = await resolvePreset(opts as PresetOptions, io);
+        const result = init({ targetDir, wikiDir, preset, siteName: opts.siteName, skipSkill: !opts.skill });
 
-      console.log(`\nwikipilot: drafted ${result.pagesWritten} page(s) into ${short(result.wikiDir)} — "${result.siteName}"`);
-      console.log(`           preset "${result.preset}": ${result.sections.join(", ")}`);
-      if (result.skillPath) {
-        console.log(`           added ${short(result.skillPath)} so Claude Code can keep it in sync`);
+        console.log(`\nwikipilot: drafted ${result.pagesWritten} page(s) into ${short(result.wikiDir)} — "${result.siteName}"`);
+        console.log(`           preset "${result.preset}": ${result.sections.join(", ")}`);
+        if (result.skillPath) {
+          console.log(`           added ${short(result.skillPath)} so Claude Code can keep it in sync`);
+        }
+
+        loadDotEnv(targetDir);
+        const plan = await resolveAiPlan(opts as AiOptions, io, process.env.ANTHROPIC_API_KEY);
+        return { result, plan };
+      });
+
+      if (plan.saveKey && plan.apiKey) {
+        saveEnvKey(targetDir, "ANTHROPIC_API_KEY", plan.apiKey);
+        console.log(`           saved the key to ${short(join(targetDir, ".env"))} (gitignored)`);
+      }
+
+      if (plan.enabled && plan.apiKey) {
+        try {
+          const config = readConfig(wikiDir);
+          const ai = await investigate({
+            targetDir,
+            wikiDir,
+            config,
+            model: opts.model,
+            apiKey: plan.apiKey,
+            report: (line) => console.log(`  ${line}`),
+          });
+          console.log(`\nwikipilot: deep investigation rewrote ${ai.pagesWritten} page(s)`);
+        } catch (err) {
+          // The mechanical draft is already on disk — an API failure downgrades
+          // the run, it doesn't fail it.
+          console.error(`wikipilot: AI pass failed (${(err as Error).message}) — the drafted wiki is intact.`);
+        }
+      } else if (opts.ai === true && !plan.enabled) {
+        console.log("wikipilot: --ai requested but no ANTHROPIC_API_KEY found — wrote the mechanical draft only.");
       }
 
       const outFlag = opts.out === "./wiki" ? "" : ` ${short(result.wikiDir)}`;

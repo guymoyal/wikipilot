@@ -41,7 +41,7 @@ const KNOWN_TECH_DESCRIPTIONS: Record<string, string> = {
   lodash: "Utility library for common data operations.",
 };
 
-function getGitSha(targetDir: string): string {
+export function getGitSha(targetDir: string): string {
   try {
     return execSync("git rev-parse --short HEAD", { cwd: targetDir, stdio: ["ignore", "pipe", "ignore"] })
       .toString()

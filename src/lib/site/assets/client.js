@@ -1,7 +1,7 @@
 (function () {
   var root = document.documentElement;
-  var stored = localStorage.getItem("wikipilot-theme");
-  if (stored) root.setAttribute("data-theme", stored);
+  // Theme is applied pre-paint by an inline <head> script; this file only
+  // handles the toggle and everything downstream of it.
 
   /*
    * Mermaid's stock dark theme doesn't know about our palette — its default
@@ -45,6 +45,29 @@
   }
 
   initMermaid(currentMode());
+
+  var navToggle = document.querySelector(".nav-toggle");
+  var sidebar = document.querySelector(".sidebar");
+  if (navToggle && sidebar) {
+    navToggle.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var open = document.body.classList.toggle("nav-open");
+      navToggle.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    document.addEventListener("click", function (e) {
+      if (!document.body.classList.contains("nav-open")) return;
+      // A tap on a sidebar link navigates anyway; any tap outside closes.
+      if (!sidebar.contains(e.target)) {
+        document.body.classList.remove("nav-open");
+        navToggle.setAttribute("aria-expanded", "false");
+      }
+    });
+  }
+
+  var kbd = document.querySelector(".search-kbd");
+  if (kbd && !/Mac|iPhone|iPad/.test(navigator.platform || "")) {
+    kbd.textContent = "Ctrl K";
+  }
 
   var input = document.querySelector(".search-box input");
   var results = document.querySelector(".search-results");
@@ -105,7 +128,10 @@
   var fab = document.createElement("button");
   fab.className = "chat-fab";
   fab.setAttribute("aria-label", "Ask the wiki");
-  fab.textContent = "💬";
+  // The message-circle mark from src/lib/site/icons.ts — assets ship verbatim,
+  // so the path data is duplicated here; keep the two in sync.
+  fab.innerHTML =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
   document.body.appendChild(fab);
 
   var panel = document.createElement("div");

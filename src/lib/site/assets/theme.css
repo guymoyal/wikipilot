@@ -60,6 +60,9 @@ body {
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
+/* Inline SVG icons inherit currentColor; contexts size them. */
+.icon { display: inline-block; width: 16px; height: 16px; vertical-align: -0.125em; }
+
 /* ---- site header ---- */
 
 .site-header {
@@ -186,8 +189,28 @@ a:hover { text-decoration: underline; }
   padding: 0.4rem 0.6rem;
   cursor: pointer;
   font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
 }
 .theme-toggle:hover { border-color: var(--border-strong); }
+.theme-toggle .icon { width: 16px; height: 16px; }
+/* Show the theme you'd switch to, not the one you're on. */
+[data-theme="dark"] .theme-toggle .icon-moon { display: none; }
+[data-theme="light"] .theme-toggle .icon-sun { display: none; }
+
+.nav-toggle {
+  display: none;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0.4rem 0.5rem;
+  cursor: pointer;
+  align-items: center;
+  flex-shrink: 0;
+}
+.nav-toggle .icon { width: 18px; height: 18px; }
+.nav-toggle:hover { border-color: var(--border-strong); }
 
 /* ---- layout (page view) ---- */
 
@@ -211,7 +234,11 @@ a:hover { text-decoration: underline; }
   letter-spacing: 0.06em;
   color: var(--text-muted);
   margin: 0 0 0.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
+.sidebar-group h4 .icon { width: 13px; height: 13px; flex-shrink: 0; }
 .sidebar-group ul { list-style: none; margin: 0; padding: 0; }
 .sidebar-group li a {
   display: block;
@@ -367,12 +394,13 @@ a:hover { text-decoration: underline; }
   height: 36px;
   border-radius: 10px;
   background: var(--accent-soft);
+  color: var(--accent);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.1rem;
   margin-bottom: 0.85rem;
 }
+.section-card-icon .icon { width: 18px; height: 18px; }
 
 .section-card h2 {
   font-size: 1.02rem;
@@ -380,10 +408,25 @@ a:hover { text-decoration: underline; }
 }
 .section-card h2 a {
   color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.section-card h2 a .icon {
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+  transition: transform 0.15s ease, color 0.15s ease;
 }
 .section-card h2 a:hover {
   color: var(--accent);
 }
+.section-card:hover h2 a .icon {
+  transform: translateX(2px);
+  color: var(--accent);
+}
+[dir="rtl"] .section-card h2 a .icon { transform: scaleX(-1); }
+[dir="rtl"] .section-card:hover h2 a .icon { transform: scaleX(-1) translateX(2px); }
 
 .section-card p {
   color: var(--text-muted);
@@ -394,8 +437,8 @@ a:hover { text-decoration: underline; }
 
 .section-card ul { list-style: none; margin: 0; padding: 0; }
 .section-card li { margin: 0.3rem 0; font-size: 0.85rem; }
-.section-card li a { color: var(--text-muted); }
-.section-card li a:hover { color: var(--accent); }
+.section-card li a { color: var(--text); }
+.section-card li a:hover { color: var(--accent); text-decoration: underline; }
 
 @media (max-width: 720px) {
   .hero { flex-direction: column; text-align: center; padding-top: 2.5rem; }
@@ -419,7 +462,11 @@ a:hover { text-decoration: underline; }
   cursor: pointer;
   box-shadow: 0 10px 26px -6px var(--accent-soft), 0 4px 12px rgba(0,0,0,0.3);
   z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
+.chat-fab svg { width: 22px; height: 22px; }
 
 .chat-panel {
   position: fixed;
@@ -553,7 +600,29 @@ article .code-figure pre { margin: 0; border-radius: 0 0 10px 10px; }
 
 @media (max-width: 800px) {
   .layout { grid-template-columns: 1fr; }
-  .sidebar { display: none; }
   .main { padding: 1.25rem; }
   .search-box { max-width: 220px; }
+  .search-kbd { display: none; }
+
+  /* The sidebar becomes a slide-over panel driven by the header's menu button. */
+  body.has-sidebar .nav-toggle { display: inline-flex; }
+  .sidebar {
+    position: fixed;
+    top: 57px;
+    bottom: 0;
+    left: 0;
+    width: min(300px, 82vw);
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    z-index: 45;
+    border-right: 1px solid var(--border);
+  }
+  [dir="rtl"] .sidebar {
+    left: auto;
+    right: 0;
+    transform: translateX(100%);
+    border-right: none;
+    border-left: 1px solid var(--border);
+  }
+  body.nav-open .sidebar { transform: none; box-shadow: var(--shadow); }
 }

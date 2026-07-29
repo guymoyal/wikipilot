@@ -64,7 +64,7 @@ Rather than wikipilot embedding its own AI-patching logic, `init` scaffolds a **
 4. Re-translate any changed page's locale mirrors.
 5. Run `wikipilot build` as a correctness check, then land as a small PR.
 
-This keeps wikipilot itself framework-agnostic (no bundled LLM orchestration for authoring-time sync) while still shipping the exact workflow proven in Grand-Wiki. The runtime "ask the wiki" assistant above is a separate, simpler concern (read-only Q&A) and does need wikipilot to ship real server code.
+Ongoing sync stays skill-driven — wikipilot bundles no LLM orchestration for keeping pages fresh, and ships the exact workflow proven in Grand-Wiki as a skill instead. Init is the one deliberate exception: it can run a single bounded investigation pass (opt-in, key required, capped in turns and bytes read) that rewrites the first draft, because that is a one-shot build step rather than a maintenance loop — see `src/lib/investigate.ts`. The runtime "ask the wiki" assistant above is a separate, simpler concern (read-only Q&A) and does need wikipilot to ship real server code.
 
 ## Config file (`wikipilot.config.json`, scaffolded by `init`)
 

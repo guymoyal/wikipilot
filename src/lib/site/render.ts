@@ -1,5 +1,6 @@
 import MarkdownIt from "markdown-it";
 import { urlPathFor, localeDir, type LoadedPage, type SidebarGroup } from "./loadContent.js";
+import { iconSvg, sectionIconSvg } from "./icons.js";
 
 const md = new MarkdownIt({ html: false, linkify: true });
 
@@ -39,17 +40,12 @@ function titleCase(slug: string): string {
   return slug.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-const SECTION_ICONS: Record<string, string> = {
-  "start-here": "🚀",
-  technologies: "🧩",
-  "how-it-works": "⚙️",
-  cookbook: "📖",
-  reference: "📚",
-};
-
-function sectionIcon(section: string): string {
-  return SECTION_ICONS[section] ?? "📄";
-}
+/**
+ * Applies the stored theme before first paint so light-mode users don't get a
+ * dark flash. The hardcoded data-theme="dark" on <html> stays as the no-JS
+ * fallback; this script wins when JS is available.
+ */
+const THEME_SCRIPT = `<script>(function(){try{var t=localStorage.getItem("wikipilot-theme")||(matchMedia("(prefers-color-scheme: light)").matches?"light":"dark");document.documentElement.setAttribute("data-theme",t)}catch(e){}})()</script>`;
 
 function brandMark(siteName: string): string {
   const letter = (siteName.trim()[0] ?? "W").toUpperCase();
@@ -66,7 +62,7 @@ function renderSidebar(groups: SidebarGroup[], currentUrl: string, basePath: str
           return `<li><a href="${esc(href)}"${active} dir="auto">${esc(p.frontmatter.title)}</a></li>`;
         })
         .join("");
-      return `<div class="sidebar-group"><h4>${esc(titleCase(group.section))}</h4><ul>${items}</ul></div>`;
+      return `<div class="sidebar-group"><h4>${sectionIconSvg(group.section)}<span>${esc(titleCase(group.section))}</span></h4><ul>${items}</ul></div>`;
     })
     .join("");
 }
@@ -74,6 +70,7 @@ function renderSidebar(groups: SidebarGroup[], currentUrl: string, basePath: str
 function renderHeader(siteName: string, base: string, localeSwitcherHtml: string, version?: string): string {
   const versionBadge = version ? `<span class="brand-version">v${esc(version)}</span>` : "";
   return `<header class="site-header">
+    <button class="nav-toggle" aria-label="Menu" aria-expanded="false">${iconSvg("menu")}</button>
     <a class="brand" href="${esc(base)}">${brandMark(siteName)}<span>${esc(siteName)}</span>${versionBadge}</a>
     <div class="search-box">
       <input type="text" placeholder="Search the wiki..." autocomplete="off" />
@@ -82,7 +79,7 @@ function renderHeader(siteName: string, base: string, localeSwitcherHtml: string
     </div>
     <div class="header-actions">
       ${localeSwitcherHtml}
-      <button class="theme-toggle" aria-label="Toggle theme">◐</button>
+      <button class="theme-toggle" aria-label="Toggle theme">${iconSvg("sun")}${iconSvg("moon")}</button>
     </div>
   </header>`;
 }
@@ -142,8 +139,8 @@ export function renderIndexHtml(sidebar: SidebarGroup[], siteName: string, local
         .join("");
       const cardHref = group.pages[0]?.urlPath.replace(localePrefix, "").replace(/^\//, "") ?? "#";
       return `<div class="section-card">
-        <div class="section-card-icon">${sectionIcon(group.section)}</div>
-        <h2><a href="${esc(cardHref)}">${esc(titleCase(group.section))}</a></h2>
+        <div class="section-card-icon">${sectionIconSvg(group.section)}</div>
+        <h2><a href="${esc(cardHref)}">${esc(titleCase(group.section))}${iconSvg("chevron-right")}</a></h2>
         ${blurb ? `<p>${esc(blurb)}</p>` : ""}
         <ul>${items}</ul>
       </div>`;
@@ -158,6 +155,7 @@ export function renderIndexHtml(sidebar: SidebarGroup[], siteName: string, local
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${esc(siteName)}</title>
+${THEME_SCRIPT}
 <link rel="stylesheet" href="assets/theme.css" />
 </head>
 <body data-base=""${agentAttr}>
@@ -165,7 +163,7 @@ ${renderHeader(siteName, "", "", version)}
 <main class="hero-page">
   <section class="hero">
     <div class="hero-copy">
-      <span class="hero-eyebrow">Wiki</span>
+      <span class="hero-eyebrow">Documentation</span>
       <h1>${esc(siteName)}</h1>
       <p>${pageCount} page${pageCount === 1 ? "" : "s"} across ${sidebar.length} section${sidebar.length === 1 ? "" : "s"}, generated from the real codebase — every page tracks the sources it came from.</p>
       <div class="hero-actions">
@@ -176,8 +174,8 @@ ${renderHeader(siteName, "", "", version)}
   </section>
   <div class="card-grid">${cards}</div>
 </main>
-<script src="assets/minisearch.js"></script>
-<script src="assets/client.js"></script>
+<script src="assets/minisearch.js" defer></script>
+<script src="assets/client.js" defer></script>
 </body>
 </html>
 `;
@@ -204,9 +202,10 @@ export function renderPageHtml(page: LoadedPage, sidebar: SidebarGroup[], option
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${esc(page.frontmatter.title)} · ${esc(options.siteName)}</title>
 <meta name="description" content="${esc(page.frontmatter.description ?? "")}" />
+${THEME_SCRIPT}
 <link rel="stylesheet" href="${esc(base)}assets/theme.css" />
 </head>
-<body data-base="${esc(base)}"${agentAttr}>
+<body class="has-sidebar" data-base="${esc(base)}"${agentAttr}>
 ${renderHeader(options.siteName, base, renderLocaleSwitcher(page, options, base), options.version)}
 <div class="layout">
   <nav class="sidebar">
@@ -221,9 +220,9 @@ ${renderHeader(options.siteName, base, renderLocaleSwitcher(page, options, base)
     <p class="page-meta" dir="ltr">Sources: ${page.frontmatter.sources.map((s) => `<code>${esc(s)}</code>`).join(", ")} · last synced <code>${esc(page.frontmatter.last_synced)}</code>${page.frontmatter.version ? ` · version <code>${esc(page.frontmatter.version)}</code>` : ""}</p>
   </main>
 </div>
-<script src="${esc(base)}assets/minisearch.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-<script src="${esc(base)}assets/client.js"></script>
+<script src="${esc(base)}assets/minisearch.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.3/dist/mermaid.min.js" defer></script>
+<script src="${esc(base)}assets/client.js" defer></script>
 </body>
 </html>
 `;

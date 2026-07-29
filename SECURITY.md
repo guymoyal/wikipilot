@@ -35,6 +35,13 @@ server-side code. It executes nothing at request time.
 serves only files inside the built output directory. It is not hardened for
 public hosting — use a real web server for that.
 
+**`wikipilot init` can spend your Anthropic API key too.** The optional
+deep-investigation pass is a bounded one-shot run from your terminal: the key
+comes from your environment or the repo's `.env`, requests go only to the
+Anthropic API, and its tool loop is capped in turns and bytes read. If you
+choose to save a typed key, init appends it to `.env` and makes sure `.env` is
+gitignored.
+
 **`wikipilot agent` spends your Anthropic API key.** It binds to `127.0.0.1` by
 default. Exposing it (`--host 0.0.0.0`) means anyone who can reach the port can
 make model calls billed to you. If you do expose it, put it behind

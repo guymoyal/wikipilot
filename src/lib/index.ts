@@ -29,4 +29,9 @@ export { loadWikiContent, buildSidebar, resolveLocalePages } from "./site/loadCo
 export type { LoadedPage, SidebarGroup } from "./site/loadContent.js";
 export { startAgentServer } from "./site/agentServer.js";
 export type { AgentServerOptions } from "./site/agentServer.js";
-export { scaffoldUpdateWikiSkill } from "./skill.js";
+export { scaffoldUpdateWikiSkill, SECTION_BRIEFS } from "./skill.js";
+export { loadDotEnv, saveEnvKey } from "./env.js";
+export { investigate, buildSystemPrompt, DEFAULT_INIT_MODEL } from "./investigate.js";
+export type { InvestigateOptions, InvestigateResult, CreateMessage } from "./investigate.js";
+export { resolvePreset, resolveAiPlan } from "./wizard.js";
+export type { PromptIO, PresetOptions, AiOptions, AiPlan, PresetChoice } from "./wizard.js";

@@ -1,7 +1,7 @@
 import { readdirSync, statSync, readFileSync } from "node:fs";
 import { join, relative, extname, basename } from "node:path";
 
-const DEFAULT_IGNORE = new Set([
+export const DEFAULT_IGNORE = new Set([
   "node_modules",
   ".git",
   "dist",

@@ -5,7 +5,7 @@ import { DEFAULT_CONFIG, type WikipilotConfig } from "./config.js";
 const REPO_URL = "https://github.com/guymoyal/wikipilot";
 
 /** Section-specific authoring guidance, so a page lands with the right shape for its audience. */
-const SECTION_BRIEFS: Record<string, string> = {
+export const SECTION_BRIEFS: Record<string, string> = {
   "start-here": "What this is and who it's for, in the first two sentences. Orientation only — link out rather than explaining everything here.",
   "getting-started": "Install steps and the shortest path to a first real result. Every command copy-pasteable and actually run before you write it down.",
   guides: "One page per task a reader wants to accomplish, named after the goal (\"Import an existing project\") not the module (\"The import service\"). Numbered steps, with the expected output shown.",
@@ -161,6 +161,7 @@ Do everything in sync mode, plus:
 ## Ground rules
 
 - Never hand-edit a code snippet "to look right" — always re-read the live file at the path in the snippet's \`title="<path>"\` (or in \`sources\`) before touching it.
+- No emoji in page titles, headings, or descriptions — the built site ships its own iconography.
 - Don't invent facts to fill gaps. A stale or incomplete page beats a confidently wrong one.
 - Don't document intent you can't find in the code. If you need to state a "why" you can't verify, mark it as an open question for a human.
 - Keep the diff small and reviewable — this is prose maintenance, not a rewrite.

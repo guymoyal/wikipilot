@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MAX_PROMPT_ATTEMPTS, resolvePreset, type PromptIO } from "../src/lib/wizard.js";
+import { MAX_PROMPT_ATTEMPTS, resolvePreset, resolveAiPlan, type PromptIO } from "../src/lib/wizard.js";
 
 /** A scripted stand-in for the terminal: answers come from a queue. */
 function fakeIO(answers: string[], interactive = true): PromptIO & { asked: number; output: string[] } {
@@ -83,4 +83,71 @@ test("every option is listed before the first question", async () => {
   assert.match(shown, /Technical/);
   assert.match(shown, /User guide/);
   assert.match(shown, /Everything/);
+});
+
+test("--no-ai disables the AI pass without asking anything", async () => {
+  const io = fakeIO([]);
+  const plan = await resolveAiPlan({ ai: false }, io, "sk-env");
+  assert.deepEqual(plan, { enabled: false, saveKey: false });
+  assert.equal(io.asked, 0);
+});
+
+test("non-interactive runs never prompt and never enable AI without --ai", async () => {
+  const io = fakeIO([], false);
+  const plan = await resolveAiPlan({}, io, "sk-env");
+  assert.equal(plan.enabled, false);
+  assert.equal(io.asked, 0, "CI must not be asked a question it cannot answer");
+});
+
+test("non-interactive --ai with a key runs without prompting", async () => {
+  const io = fakeIO([], false);
+  const plan = await resolveAiPlan({ ai: true }, io, "sk-env");
+  assert.deepEqual(plan, { enabled: true, apiKey: "sk-env", saveKey: false });
+  assert.equal(io.asked, 0);
+});
+
+test("non-interactive --ai without a key stays disabled", async () => {
+  const io = fakeIO([], false);
+  const plan = await resolveAiPlan({ ai: true }, io, undefined);
+  assert.equal(plan.enabled, false);
+});
+
+test("pressing enter accepts the AI pass when a key is already available", async () => {
+  const io = fakeIO([""]);
+  const plan = await resolveAiPlan({}, io, "sk-env");
+  assert.deepEqual(plan, { enabled: true, apiKey: "sk-env", saveKey: false });
+  assert.equal(io.asked, 1, "with a key on hand there is nothing else to ask");
+});
+
+test("answering n skips the AI pass", async () => {
+  const io = fakeIO(["n"]);
+  const plan = await resolveAiPlan({}, io, "sk-env");
+  assert.equal(plan.enabled, false);
+});
+
+test("a typed key enables the pass without saving by default", async () => {
+  const io = fakeIO(["", "sk-typed-123", ""]);
+  const plan = await resolveAiPlan({}, io, undefined);
+  assert.deepEqual(plan, { enabled: true, apiKey: "sk-typed-123", saveKey: false });
+  assert.equal(io.asked, 3);
+});
+
+test("answering y to the save question sets saveKey", async () => {
+  const io = fakeIO(["y", "sk-typed-456", "y"]);
+  const plan = await resolveAiPlan({}, io, undefined);
+  assert.deepEqual(plan, { enabled: true, apiKey: "sk-typed-456", saveKey: true });
+});
+
+test("an empty key answer keeps the mechanical draft", async () => {
+  const io = fakeIO(["", "  "]);
+  const plan = await resolveAiPlan({}, io, undefined);
+  assert.equal(plan.enabled, false);
+  assert.ok(io.output.some((l) => l.includes("mechanical draft")));
+});
+
+test("--ai on a TTY skips the yes/no question but still collects a key", async () => {
+  const io = fakeIO(["sk-typed-789", ""]);
+  const plan = await resolveAiPlan({ ai: true }, io, undefined);
+  assert.deepEqual(plan, { enabled: true, apiKey: "sk-typed-789", saveKey: false });
+  assert.equal(io.asked, 2, "no [Y/n] question when --ai was explicit");
 });

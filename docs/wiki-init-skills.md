@@ -19,6 +19,11 @@ This skill covers the *initial* build. Ongoing maintenance (sync, audit,
 authoring single pages later) belongs to the `update-wiki` skill that `init`
 scaffolds into `.claude/skills/update-wiki/`.
 
+`wikipilot init` can also run this investigation itself: with an
+`ANTHROPIC_API_KEY` available it offers a deep-investigation pass
+(`src/lib/investigate.ts`) whose system prompt mirrors the phases below. Keep
+the two in sync when either changes.
+
 ---
 
 ## What you are working with
@@ -279,6 +284,8 @@ one in your output, the fix is always the same: go back to the code.
 ## Ground rules
 
 - Investigation first, prose second. No page is written before Phase 1 ends.
+- No emoji in page titles, headings, or descriptions — the built site ships its
+  own iconography.
 - Never invent facts to fill a gap — a short accurate page beats a long wrong
   one.
 - Snippets are copied, captioned, and unedited. Diagrams are derived, not

@@ -73,3 +73,57 @@ export async function resolvePreset(options: PresetOptions, io: PromptIO): Promi
   io.print(`  Falling back to ${PRESET_CHOICES[0].label}.`);
   return PRESET_CHOICES[0].preset;
 }
+
+export interface AiPlan {
+  enabled: boolean;
+  /** Key for this run — from the environment/.env, or freshly typed. */
+  apiKey?: string;
+  /** The user asked for a freshly-typed key to be persisted to the repo's .env. */
+  saveKey: boolean;
+}
+
+/** Commander tri-state: `--ai` → true, `--no-ai` → false, neither → undefined. */
+export interface AiOptions {
+  ai?: boolean;
+}
+
+const YES = /^(y|yes)$/i;
+const NO = /^(n|no)$/i;
+
+/**
+ * Decides whether init runs the AI deep-investigation pass, and with which key.
+ * Non-interactive runs never prompt: they need an explicit `--ai` plus a key
+ * already in the environment, so CI can't hang and can't spend money by accident.
+ */
+export async function resolveAiPlan(
+  options: AiOptions,
+  io: PromptIO,
+  envKey: string | undefined,
+): Promise<AiPlan> {
+  if (options.ai === false) return { enabled: false, saveKey: false };
+
+  if (!io.interactive) {
+    if (options.ai === true && envKey) return { enabled: true, apiKey: envKey, saveKey: false };
+    return { enabled: false, saveKey: false };
+  }
+
+  if (options.ai === undefined) {
+    const answer = (await io.ask("\nRun the AI deep investigation now? [Y/n] ")).trim();
+    if (answer && !YES.test(answer)) {
+      if (!NO.test(answer)) io.print("  Taking that as a no.");
+      return { enabled: false, saveKey: false };
+    }
+  }
+
+  if (envKey) return { enabled: true, apiKey: envKey, saveKey: false };
+
+  io.print("  This needs an Anthropic API key (console.anthropic.com/settings/keys).");
+  const typed = (await io.ask("  Paste your Anthropic API key: ")).trim();
+  if (!typed) {
+    io.print("  No key — keeping the mechanical draft. Re-run with a key to upgrade it.");
+    return { enabled: false, saveKey: false };
+  }
+
+  const save = (await io.ask("  Save it to .env for next time? [y/N] ")).trim();
+  return { enabled: true, apiKey: typed, saveKey: YES.test(save) };
+}
