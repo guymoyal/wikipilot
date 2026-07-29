@@ -32,6 +32,28 @@ export interface InvestigateResult {
   turns: number;
   summary: string;
   stopped: "finished" | "max_turns";
+  usage: InvestigateUsage;
+}
+
+export interface InvestigateUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+}
+
+/**
+ * Rough cost at claude-sonnet-5 list prices ($3/M input, $15/M output, cache
+ * reads ~0.1x, cache writes ~1.25x). Other models differ — this is a readout so
+ * a run's spend is visible, not a bill.
+ */
+export function estimateCostUsd(usage: InvestigateUsage): number {
+  return (
+    (usage.inputTokens / 1e6) * 3 +
+    (usage.outputTokens / 1e6) * 15 +
+    (usage.cacheReadTokens / 1e6) * 0.3 +
+    (usage.cacheWriteTokens / 1e6) * 3.75
+  );
 }
 
 const MAX_FILE_BYTES = 64 * 1024;
@@ -218,7 +240,10 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
   const model = options.model ?? process.env.WIKI_INIT_MODEL ?? DEFAULT_INIT_MODEL;
   const report = options.report ?? (() => {});
   const maxTurns = options.maxTurns ?? 150;
-  let readBudget = options.maxReadBytes ?? 5 * 1024 * 1024;
+  // The read budget caps spend AND keeps the conversation inside the model's
+  // context window, however large the repo is. Haiku's window is much smaller
+  // than Sonnet's, so its budget is too.
+  let readBudget = options.maxReadBytes ?? (model.includes("haiku") ? 512 * 1024 : 2 * 1024 * 1024);
 
   const locale = config.locales[0] ?? "en";
   const sha = getGitSha(targetDir);
@@ -234,6 +259,7 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
   let pagesWritten = 0;
   let summary = "";
   let finished = false;
+  const usage: InvestigateUsage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
 
   // Pages that existed before the run — the mechanical draft, or a previous
   // run's output. Whatever the investigation doesn't rewrite is superseded and
@@ -435,10 +461,30 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
   const messages: Anthropic.MessageParam[] = [
     {
       role: "user",
-      content:
-        "Begin. Investigate the repository with your tools, plan the page map, then write the wiki and call finish.",
+      content: [
+        {
+          type: "text",
+          text: "Begin. Investigate the repository with your tools, plan the page map, then write the wiki and call finish.",
+        },
+      ],
     },
   ];
+
+  /**
+   * The whole history is resent every turn — without caching that re-bills it
+   * at full price each time. Marking the newest message caches the prefix, so
+   * later turns re-read it at ~10% of the input rate. The mark is added on a
+   * shallow copy at send time; stored history stays unmarked.
+   */
+  function withCacheMark(history: Anthropic.MessageParam[]): Anthropic.MessageParam[] {
+    const last = history[history.length - 1];
+    if (!Array.isArray(last.content) || last.content.length === 0) return history;
+    const blocks = last.content.slice();
+    const tail = blocks[blocks.length - 1];
+    if (typeof tail !== "object" || tail.type === "thinking" || tail.type === "redacted_thinking") return history;
+    blocks[blocks.length - 1] = { ...tail, cache_control: { type: "ephemeral" } } as typeof tail;
+    return [...history.slice(0, -1), { role: last.role, content: blocks }];
+  }
 
   report(`deep investigation with ${model} — this reads your code and can take several minutes`);
 
@@ -450,8 +496,15 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
       max_tokens: 16000,
       system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
       tools: TOOLS,
-      messages,
+      messages: withCacheMark(messages),
     });
+
+    if (response.usage) {
+      usage.inputTokens += response.usage.input_tokens ?? 0;
+      usage.outputTokens += response.usage.output_tokens ?? 0;
+      usage.cacheReadTokens += response.usage.cache_read_input_tokens ?? 0;
+      usage.cacheWriteTokens += response.usage.cache_creation_input_tokens ?? 0;
+    }
 
     const toolUses = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
     if (response.stop_reason !== "tool_use" || toolUses.length === 0) {
@@ -502,6 +555,13 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
     if (pagesRemoved > 0) report(`removed ${pagesRemoved} superseded draft page(s)`);
   }
 
+  const totalTokens = usage.inputTokens + usage.outputTokens + usage.cacheReadTokens + usage.cacheWriteTokens;
   report(`investigation ${finished ? "complete" : "stopped at the turn limit"} — ${pagesWritten} page(s) written over ${turns} turn(s)`);
-  return { pagesWritten, pagesRemoved, turns, summary, stopped: finished ? "finished" : "max_turns" };
+  if (totalTokens > 0) {
+    const costNote = model.startsWith(DEFAULT_INIT_MODEL)
+      ? ` — about $${estimateCostUsd(usage).toFixed(2)} at ${DEFAULT_INIT_MODEL} list prices`
+      : "";
+    report(`tokens: ${Math.round(totalTokens / 1000)}k total (${Math.round(usage.cacheReadTokens / 1000)}k cached reads)${costNote}`);
+  }
+  return { pagesWritten, pagesRemoved, turns, summary, stopped: finished ? "finished" : "max_turns", usage };
 }

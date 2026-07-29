@@ -281,6 +281,47 @@ test("progress goes only through the injected reporter", async () => {
   }
 });
 
+test("each request cache-marks only the newest message; stored history stays clean", async () => {
+  const fx = makeFixture();
+  try {
+    const { createMessage, requests } = scripted([
+      message([toolUse("list_dir", {})]),
+      message([toolUse("read_file", { path: "package.json" })]),
+      message([toolUse("finish", { summary: "done" })]),
+    ]);
+    await investigate({ targetDir: fx.targetDir, wikiDir: fx.wikiDir, config: configForPreset("all"), createMessage });
+
+    for (const req of requests) {
+      const history = req.messages;
+      const last = history[history.length - 1].content as Array<{ cache_control?: { type: string } }>;
+      assert.equal(last[last.length - 1].cache_control?.type, "ephemeral", "newest message must carry the breakpoint");
+      for (const msg of history.slice(0, -1)) {
+        for (const block of msg.content as Array<{ cache_control?: unknown }>) {
+          assert.equal(block.cache_control, undefined, "older messages must not accumulate stale breakpoints");
+        }
+      }
+    }
+  } finally {
+    rmSync(fx.outerDir, { recursive: true, force: true });
+  }
+});
+
+test("token usage is accumulated across turns and returned", async () => {
+  const fx = makeFixture();
+  try {
+    const first = message([toolUse("list_dir", {})]);
+    (first as { usage?: unknown }).usage = { input_tokens: 100, output_tokens: 10, cache_read_input_tokens: 0, cache_creation_input_tokens: 50 };
+    const second = message([toolUse("finish", { summary: "done" })]);
+    (second as { usage?: unknown }).usage = { input_tokens: 20, output_tokens: 5, cache_read_input_tokens: 140, cache_creation_input_tokens: 30 };
+
+    const { createMessage } = scripted([first, second]);
+    const result = await investigate({ targetDir: fx.targetDir, wikiDir: fx.wikiDir, config: configForPreset("all"), createMessage });
+    assert.deepEqual(result.usage, { inputTokens: 120, outputTokens: 15, cacheReadTokens: 140, cacheWriteTokens: 80 });
+  } finally {
+    rmSync(fx.outerDir, { recursive: true, force: true });
+  }
+});
+
 test("a text-only reply ends the run as finished with that text as summary", async () => {
   const fx = makeFixture();
   try {

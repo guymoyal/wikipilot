@@ -74,6 +74,8 @@ On an interactive terminal `init` asks before running it. No key in your environ
 
 If the pass fails mid-run — network, rate limit, whatever — the drafted wiki is already on disk, so you lose nothing.
 
+**What it costs.** The run is bounded no matter how big the repo is: at most 150 model turns and a fixed read budget (2 MB of file content on Sonnet, less on Haiku so it fits the smaller context window), with the conversation prompt-cached so each turn re-reads history at ~10% of the input rate. A mid-size repo lands in the low single-digit dollars on `claude-sonnet-5`; the run prints its token count and an estimated cost when it finishes, so you're never guessing. For cheaper runs, `--model claude-haiku-4-5-20251001` trades some writing quality for roughly a quarter of the price.
+
 ## Commands
 
 | Command | What it does |
