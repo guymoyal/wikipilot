@@ -59,14 +59,14 @@ test("init --preset user-guide drafts user-facing sections and skips the dev-fac
   }
 });
 
-test("init defaults to the technical preset and drafts dev-facing sections", () => {
+test("init defaults to the all preset and drafts both audiences", () => {
   const targetDir = makeFixtureRepo();
   const wikiDir = join(targetDir, "wiki");
   try {
     const result = init({ targetDir, wikiDir });
-    assert.equal(result.preset, "technical");
-    assert.ok(existsSync(join(wikiDir, "content", "en", "technologies")));
-    assert.ok(!existsSync(join(wikiDir, "content", "en", "faq")), "faq belongs to the user-guide preset");
+    assert.equal(result.preset, "all");
+    assert.ok(existsSync(join(wikiDir, "content", "en", "technologies")), "dev-facing sections are drafted");
+    assert.ok(existsSync(join(wikiDir, "content", "en", "faq")), "user-guide sections are drafted too");
   } finally {
     rmSync(targetDir, { recursive: true, force: true });
   }

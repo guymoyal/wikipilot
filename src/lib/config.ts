@@ -57,7 +57,7 @@ export function sectionsForPreset(preset: WikiPreset): string[] {
   return [...SECTIONS_BY_PRESET[preset]];
 }
 
-export const DEFAULT_PRESET: WikiPreset = "technical";
+export const DEFAULT_PRESET: WikiPreset = "all";
 
 /** Kept as a named export because older configs and tests refer to it. */
 export const DEFAULT_SECTIONS = sectionsForPreset(DEFAULT_PRESET);

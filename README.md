@@ -15,8 +15,8 @@ npx wikipilot init
 It asks one question, drafts the wiki, and tells you what to run next:
 
 ```
-wikipilot: drafted 7 page(s) into ./wiki — "My App"
-           preset "technical": start-here, how-it-works, technologies, reference, cookbook
+wikipilot: drafted 11 page(s) into ./wiki — "My App"
+           preset "all": start-here, getting-started, guides, how-it-works, technologies, cookbook, faq, troubleshooting, reference
            added ./.claude/skills/update-wiki/SKILL.md so Claude Code can keep it in sync
 
 Next:
@@ -50,11 +50,11 @@ The defaults line up, so those three commands work with no arguments. Every flag
 
 | Preset | Sections |
 |---|---|
+| `all` (default) | both audiences, ordered from onboarding through to lookup material |
 | `technical` | `start-here`, `how-it-works`, `technologies`, `reference`, `cookbook` |
 | `user-guide` | `start-here`, `getting-started`, `guides`, `faq`, `troubleshooting` |
-| `all` | both, ordered from onboarding through to lookup material |
 
-Pass `--preset <type>` to answer up front, or `--yes` to take the default. The prompt only appears on an interactive terminal — piped and CI runs take the default instead of hanging.
+Pass `--preset <type>` to answer up front, or `--yes` to take the default (`all`). The prompt only appears on an interactive terminal — piped and CI runs take the default instead of hanging.
 
 It doesn't scaffold empty placeholders: pages are drafted from your `package.json` and README (an overview, install and quick-start steps, one page per dependency, script-derived recipes, a file map) and stamped with the current commit SHA. The site is named after your project — `@acme/billing-service` becomes "Billing Service" — and `--site-name` overrides that.
 

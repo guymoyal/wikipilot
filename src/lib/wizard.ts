@@ -8,6 +8,11 @@ export interface PresetChoice {
 
 export const PRESET_CHOICES: PresetChoice[] = [
   {
+    preset: "all",
+    label: "Everything",
+    blurb: "Technical and user guide together — both audiences, one wiki.",
+  },
+  {
     preset: "technical",
     label: "Technical",
     blurb: "For people working on this codebase — architecture, dependencies, internals.",
@@ -16,11 +21,6 @@ export const PRESET_CHOICES: PresetChoice[] = [
     preset: "user-guide",
     label: "User guide",
     blurb: "For people using what it produces — install, guides, FAQ, troubleshooting.",
-  },
-  {
-    preset: "all",
-    label: "Everything",
-    blurb: "Both audiences in one wiki.",
   },
 ];
 

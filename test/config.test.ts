@@ -62,7 +62,7 @@ test("readConfig keeps explicit sections from a pre-preset config instead of ove
     );
     const config = readConfig(dir);
     assert.deepEqual(config.sections, ["start-here", "legacy-section"]);
-    assert.equal(config.preset, "technical", "missing preset falls back to the default");
+    assert.equal(config.preset, "all", "missing preset falls back to the default");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

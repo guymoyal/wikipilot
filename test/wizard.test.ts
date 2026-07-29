@@ -31,19 +31,19 @@ test("an unknown --preset fails with the valid options named", async () => {
 
 test("--yes takes the default without prompting", async () => {
   const io = fakeIO([]);
-  assert.equal(await resolvePreset({ yes: true }, io), "technical");
+  assert.equal(await resolvePreset({ yes: true }, io), "all");
   assert.equal(io.asked, 0);
 });
 
 test("a non-interactive stdin never blocks on a prompt", async () => {
   const io = fakeIO([], false);
-  assert.equal(await resolvePreset({}, io), "technical");
+  assert.equal(await resolvePreset({}, io), "all");
   assert.equal(io.asked, 0, "CI must not be asked a question it cannot answer");
 });
 
 test("choosing by number picks that wiki type", async () => {
-  assert.equal(await resolvePreset({}, fakeIO(["2"])), "user-guide");
-  assert.equal(await resolvePreset({}, fakeIO(["3"])), "all");
+  assert.equal(await resolvePreset({}, fakeIO(["2"])), "technical");
+  assert.equal(await resolvePreset({}, fakeIO(["3"])), "user-guide");
 });
 
 test("choosing by name works too", async () => {
@@ -53,26 +53,26 @@ test("choosing by name works too", async () => {
 
 test("pressing enter accepts the first option", async () => {
   const io = fakeIO(["  "]);
-  assert.equal(await resolvePreset({}, io), "technical");
+  assert.equal(await resolvePreset({}, io), "all");
   assert.equal(io.asked, 1);
 });
 
 test("an invalid answer re-asks instead of guessing", async () => {
   const io = fakeIO(["nope", "2"]);
-  assert.equal(await resolvePreset({}, io), "user-guide");
+  assert.equal(await resolvePreset({}, io), "technical");
   assert.equal(io.asked, 2);
   assert.ok(io.output.some((l) => l.includes("Not one of the options")));
 });
 
 test("repeated invalid answers give up rather than looping forever", async () => {
   const io = fakeIO(["x", "y", "z", "2"]);
-  assert.equal(await resolvePreset({}, io), "technical");
+  assert.equal(await resolvePreset({}, io), "all");
   assert.equal(io.asked, MAX_PROMPT_ATTEMPTS, "must stop asking after the attempt limit");
 });
 
 test("an out-of-range number is rejected, not silently coerced", async () => {
   const io = fakeIO(["9", "1"]);
-  assert.equal(await resolvePreset({}, io), "technical");
+  assert.equal(await resolvePreset({}, io), "all");
   assert.equal(io.asked, 2, "9 should be re-asked, not treated as a valid choice");
 });
 
