@@ -89,3 +89,30 @@ test("draftContent omits onboarding for the user-guide preset", () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("draftContent always tells a new dev to run plain npm install, even with a custom install script", () => {
+  const dir = mkdtempSync(join(tmpdir(), "wikipilot-draft-"));
+  try {
+    writeFileSync(
+      join(dir, "package.json"),
+      JSON.stringify({
+        name: "fixture-app",
+        description: "A fixture app for testing.",
+        // A custom "install" lifecycle script used to suppress the real `npm install`
+        // line and get replaced with `npm run install`, which doesn't install anything.
+        scripts: { install: "node scripts/postinstall.js", build: "tsc", test: "node --test" },
+      })
+    );
+    writeFileSync(join(dir, "README.md"), "# fixture-app\n\nA fixture app for testing.\n");
+    mkdirSync(join(dir, "src"));
+    writeFileSync(join(dir, "src", "index.ts"), "export const x = 1;\n");
+
+    const pages = draftContent(dir);
+    const onboarding = pages.find((p) => p.section === "onboarding" && p.slug === "index");
+    assert.ok(onboarding, "expected an onboarding/index page");
+    assert.match(onboarding.body, /^npm install$/m, "plain npm install must always appear when a day-one script exists");
+    assert.ok(!onboarding.body.includes("npm run install"), "the custom install script must not stand in for npm install");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

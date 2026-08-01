@@ -597,10 +597,10 @@ function draftOnboarding(tree: ScannedDir, pkg: PackageJson | null, sha: string)
   if (engines.length) lines.push("");
 
   const scripts = pkg?.scripts ?? {};
-  const dayOne = ["install", "dev", "test", "build"].filter((s) => scripts[s]);
+  const dayOne = ["dev", "test", "build"].filter((s) => scripts[s]);
   if (dayOne.length) {
     lines.push("```bash");
-    if (!scripts.install) lines.push("npm install");
+    lines.push("npm install");
     for (const script of dayOne) lines.push(`npm run ${script}`);
     lines.push("```", "");
   } else {
