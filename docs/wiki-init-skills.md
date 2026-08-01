@@ -36,8 +36,8 @@ them. The same file carries `siteName`, `version`, `locales`, and
 
 | Preset | Sections |
 |---|---|
-| `all` (the default) | `start-here`, `getting-started`, `guides`, `how-it-works`, `technologies`, `cookbook`, `faq`, `troubleshooting`, `reference` |
-| `technical` | `start-here`, `how-it-works`, `technologies`, `reference`, `cookbook` |
+| `all` (the default) | `start-here`, `getting-started`, `guides`, `onboarding`, `how-it-works`, `technologies`, `cookbook`, `faq`, `troubleshooting`, `reference` |
+| `technical` | `start-here`, `onboarding`, `how-it-works`, `technologies`, `reference`, `cookbook` |
 | `user-guide` | `start-here`, `getting-started`, `guides`, `faq`, `troubleshooting` |
 
 Every page carries a freshness contract in its frontmatter:
@@ -83,26 +83,32 @@ Work through these in order; each builds on the last:
 1. **Entry points.** `package.json` (`bin`, `main`, `exports`, `scripts`),
    `Dockerfile`, CI workflows, `Makefile`. These tell you what the project
    *is* — a CLI, a service, a library, a site — before any README claim does.
-2. **The primary flow, end to end.** Pick the thing a user most obviously
+2. **The product surface.** UI routes or screens, CLI commands, API endpoints,
+   exported entry points. From these, answer: who uses this, what problem it
+   solves for them, and the user's journey — the sequence of user-visible
+   steps from first contact to the core result. For a library or CLI the
+   journey is the primary usage path; never invent a funnel the code does
+   not show.
+3. **The primary flow, end to end.** Pick the thing a user most obviously
    does (the main CLI command, the main endpoint, the main export) and read
    the code path from entry to result. Note every module it passes through —
    this trace becomes the backbone of `how-it-works` and its diagrams.
-3. **The tests.** Tests state intended behaviour more honestly than comments
+4. **The tests.** Tests state intended behaviour more honestly than comments
    or the README. A test named `"a non-interactive stdin never blocks"` is a
    documented guarantee; harvest these.
-4. **Configuration surface.** Env vars (`process.env`, `.env.example`),
+5. **Configuration surface.** Env vars (`process.env`, `.env.example`),
    config files, CLI flags, defaults. This becomes `reference` material and
    tells you what "getting started" should actually say.
-5. **Data model.** Schemas, migrations, type definitions, wire formats.
+6. **Data model.** Schemas, migrations, type definitions, wire formats.
    If entities relate to each other, this is where an `erDiagram` comes from.
-6. **Dependencies, with receipts.** For each direct dependency, find the
+7. **Dependencies, with receipts.** For each direct dependency, find the
    files that import it and what it is used *for in this repo*. "Commander —
    parses the CLI" is a real finding; a paraphrase of the dependency's own
    README is not.
-7. **Boundaries and non-goals.** What the project deliberately does not do
+8. **Boundaries and non-goals.** What the project deliberately does not do
    (check README, comments, closed-over decisions in code). Documenting a
    boundary prevents the wiki from over-promising.
-8. **Recent history.** Skim `git log --oneline -30` for the "why" behind
+9. **Recent history.** Skim `git log --oneline -30` for the "why" behind
    things that look odd. Never state a "why" you could not verify — mark it
    as an open question instead.
 
@@ -131,6 +137,7 @@ number, never the target. When the two conflict, write fewer pages.
 | `start-here` | entry points, boundaries | one overview: what it is, who it's for, where to go next |
 | `getting-started` | scripts, config surface | installation; first result in under five minutes |
 | `guides` | primary + secondary flows | one page per user goal, named after the goal |
+| `onboarding` | scripts, repo tour, tests | a new developer's day one: verified setup commands, where things live and why, a first-change walkthrough, how to run the tests |
 | `how-it-works` | the end-to-end trace | architecture; the primary flow; any lifecycle with named states |
 | `technologies` | dependency receipts | one page per dependency that matters, citing the files that use it |
 | `cookbook` | scripts, tests | short task → command → result recipes |
@@ -140,6 +147,15 @@ number, never the target. When the two conflict, write fewer pages.
 
 Skip a section rather than pad it. Three honest FAQ entries beat ten invented
 ones, and an empty section is a visible TODO while a padded one is a trap.
+
+Four pages are required whenever their section exists, and each has a bar:
+`start-here/overview` opens with the product narrative (what it does, who
+uses it, the 2-4 main use cases) and ends with a map for each reader type;
+one `how-it-works` page carries an end-to-end **user-flow diagram** (the
+user's journey, distinct from the architecture diagram); `onboarding/index`
+covers day one as described above; every `technologies` page says why the
+technology serves *this* project — verified or marked as an open question —
+with a copied snippet and links to the importing files.
 
 ## Phase 3 — Author the pages
 
@@ -260,7 +276,11 @@ the publish module").
    genuinely cover the page.
 5. Read the whole wiki top to bottom in one pass. Repetition, contradictions,
    and tonal drift between pages are only visible at this level.
-6. Land it as a reviewable commit or PR — a human should eyeball an
+6. Walk the required pages: overview opens with the product narrative,
+   how-it-works has its user-flow diagram, onboarding covers day one,
+   technologies pages carry their "why" and a copied snippet.
+7. Confirm no mechanical-draft placeholder text survives anywhere.
+8. Land it as a reviewable commit or PR — a human should eyeball an
    AI-written wiki before it merges. Do not push automatically.
 
 ---
