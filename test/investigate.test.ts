@@ -106,6 +106,26 @@ test("happy path: write_page then finish produces a real page and clears stale d
   }
 });
 
+test("write_page accepts the onboarding section under the all preset", async () => {
+  const fx = makeFixture();
+  try {
+    const { createMessage, requests } = scripted([
+      message([toolUse("write_page", { ...PAGE_INPUT, section: "onboarding", slug: "index" })]),
+      message([toolUse("finish", { summary: "done" })]),
+    ]);
+    const result = await investigate({ targetDir: fx.targetDir, wikiDir: fx.wikiDir, config: configForPreset("all"), createMessage });
+
+    assert.equal(result.pagesWritten, 1);
+    const [toolResult] = (requests[1].messages.at(-1)?.content ?? []) as Anthropic.ToolResultBlockParam[];
+    assert.notEqual(toolResult.is_error, true, "onboarding is a configured section under the all preset");
+
+    const path = join(fx.wikiDir, "content", "en", "onboarding", "index.md");
+    assert.ok(existsSync(path), "expected the onboarding page to land at content/en/onboarding/index.md");
+  } finally {
+    rmSync(fx.outerDir, { recursive: true, force: true });
+  }
+});
+
 test("read_file cannot escape the repo root", async () => {
   const fx = makeFixture();
   try {
