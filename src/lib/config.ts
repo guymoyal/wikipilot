@@ -19,7 +19,7 @@ export interface WikipilotConfig {
   sourcesOfTruth: string[];
 }
 
-export const TECHNICAL_SECTIONS = ["start-here", "how-it-works", "technologies", "reference", "cookbook"];
+export const TECHNICAL_SECTIONS = ["start-here", "onboarding", "how-it-works", "technologies", "reference", "cookbook"];
 export const USER_GUIDE_SECTIONS = ["start-here", "getting-started", "guides", "faq", "troubleshooting"];
 
 /** Union, ordered so a reader moves from onboarding → usage → internals → lookup. */
@@ -27,6 +27,7 @@ export const ALL_SECTIONS = [
   "start-here",
   "getting-started",
   "guides",
+  "onboarding",
   "how-it-works",
   "technologies",
   "cookbook",

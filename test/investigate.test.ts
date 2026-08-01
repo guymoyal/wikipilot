@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
-import { investigate, DEFAULT_INIT_MODEL, type CreateMessage } from "../src/lib/investigate.js";
+import { investigate, buildSystemPrompt, DEFAULT_INIT_MODEL, type CreateMessage } from "../src/lib/investigate.js";
 import { configForPreset } from "../src/lib/config.js";
 import { parseFrontmatter } from "../src/lib/frontmatter.js";
 
@@ -101,6 +101,26 @@ test("happy path: write_page then finish produces a real page and clears stale d
     assert.equal(frontmatter.locale, "en");
     assert.ok(frontmatter.last_synced.length > 0);
     assert.match(body, /single constant/);
+  } finally {
+    rmSync(fx.outerDir, { recursive: true, force: true });
+  }
+});
+
+test("write_page accepts the onboarding section under the all preset", async () => {
+  const fx = makeFixture();
+  try {
+    const { createMessage, requests } = scripted([
+      message([toolUse("write_page", { ...PAGE_INPUT, section: "onboarding", slug: "index" })]),
+      message([toolUse("finish", { summary: "done" })]),
+    ]);
+    const result = await investigate({ targetDir: fx.targetDir, wikiDir: fx.wikiDir, config: configForPreset("all"), createMessage });
+
+    assert.equal(result.pagesWritten, 1);
+    const [toolResult] = (requests[1].messages.at(-1)?.content ?? []) as Anthropic.ToolResultBlockParam[];
+    assert.notEqual(toolResult.is_error, true, "onboarding is a configured section under the all preset");
+
+    const path = join(fx.wikiDir, "content", "en", "onboarding", "index.md");
+    assert.ok(existsSync(path), "expected the onboarding page to land at content/en/onboarding/index.md");
   } finally {
     rmSync(fx.outerDir, { recursive: true, force: true });
   }
@@ -359,4 +379,23 @@ test("a text-only reply ends the run as finished with that text as summary", asy
   } finally {
     rmSync(fx.outerDir, { recursive: true, force: true });
   }
+});
+
+test("buildSystemPrompt demands product narrative, user-flow diagram, onboarding, and tech rationale for the all preset", () => {
+  const prompt = buildSystemPrompt(configForPreset("all"), { sha: "abc1234", locale: "en" });
+  assert.match(prompt, /user's journey/);
+  assert.match(prompt, /start-here\/overview/);
+  assert.match(prompt, /user-flow diagram/);
+  assert.match(prompt, /onboarding\/index/);
+  assert.match(prompt, /why this technology serves this project/i);
+  assert.match(prompt, /Before you call finish/);
+});
+
+test("buildSystemPrompt omits required pages whose sections are not in this wiki", () => {
+  const prompt = buildSystemPrompt(configForPreset("user-guide"), { sha: "abc1234", locale: "en" });
+  assert.ok(!prompt.includes("onboarding/index"));
+  assert.ok(!prompt.includes("why this technology serves this project"));
+  // The product narrative applies to every preset.
+  assert.match(prompt, /start-here\/overview/);
+  assert.match(prompt, /Before you call finish/);
 });

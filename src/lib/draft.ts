@@ -581,6 +581,61 @@ function draftCookbook(pkg: PackageJson | null, sha: string): DraftedPage[] {
   ];
 }
 
+function draftOnboarding(tree: ScannedDir, pkg: PackageJson | null, sha: string): DraftedPage[] {
+  const name = pkg?.name ?? tree.name;
+  const lines: string[] = [
+    `The page a developer opens on their first day working on ${name}. This stub lists what was mechanically detectable — replace each section with what a new teammate genuinely needs.`,
+    "",
+    "## Day-one setup",
+    "",
+  ];
+
+  const engines = pkg?.engines ? Object.entries(pkg.engines) : [];
+  for (const [engine, range] of engines) {
+    lines.push(`- ${engine} \`${range}\``);
+  }
+  if (engines.length) lines.push("");
+
+  const scripts = pkg?.scripts ?? {};
+  const dayOne = ["dev", "test", "build"].filter((s) => scripts[s]);
+  if (dayOne.length) {
+    lines.push("```bash");
+    lines.push("npm install");
+    for (const script of dayOne) lines.push(`npm run ${script}`);
+    lines.push("```", "");
+  } else {
+    lines.push("No standard scripts detected — write the exact commands that take a fresh clone to passing tests.", "");
+  }
+
+  lines.push("## Repo tour", "");
+  for (const sub of tree.subdirs) {
+    lines.push(`- \`${sub.name}/\` — say what lives here and when a new dev touches it`);
+  }
+  lines.push(
+    "",
+    "## Your first change",
+    "",
+    "Point at a real, low-risk place to make a first change, and describe how to verify it worked. Until then, a new dev has to guess.",
+  );
+
+  return [
+    {
+      section: "onboarding",
+      slug: "index",
+      frontmatter: {
+        title: "Developer onboarding",
+        description: `A new developer's first week on ${name}: setup, repo tour, first change.`,
+        section: "onboarding",
+        order: 1,
+        sources: ["package.json"],
+        last_synced: sha,
+        locale: "en",
+      },
+      body: lines.join("\n"),
+    },
+  ];
+}
+
 export function draftContent(targetDir: string, preset: WikiPreset = DEFAULT_PRESET): DraftedPage[] {
   const tree = scanDirectory(targetDir);
   const pkg = readPackageJson(targetDir);
@@ -590,6 +645,7 @@ export function draftContent(targetDir: string, preset: WikiPreset = DEFAULT_PRE
     ...draftStartHere(targetDir, tree, pkg, sha, preset),
     ...draftGettingStarted(tree, pkg, sha),
     ...draftGuides(tree, pkg, sha),
+    ...draftOnboarding(tree, pkg, sha),
     ...draftTechnologies(pkg, sha),
     ...draftHowItWorks(pkg, sha),
     ...draftCookbook(pkg, sha),

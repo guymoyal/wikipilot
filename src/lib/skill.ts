@@ -8,6 +8,7 @@ const REPO_URL = "https://github.com/guymoyal/wikipilot";
 export const SECTION_BRIEFS: Record<string, string> = {
   "start-here": "What this is and who it's for, in the first two sentences. Orientation only — link out rather than explaining everything here.",
   "getting-started": "Install steps and the shortest path to a first real result. Every command copy-pasteable and actually run before you write it down.",
+  onboarding: "A new developer's first week: environment setup with verified commands, a guided repo tour, where to make a first change, how to run and read the tests. Written for someone who joined yesterday.",
   guides: "One page per task a reader wants to accomplish, named after the goal (\"Import an existing project\") not the module (\"The import service\"). Numbered steps, with the expected output shown.",
   "how-it-works": "The real control/data flow through the system. This is where sequence and architecture diagrams belong, and where a wrong diagram does the most damage — trace it in the code first.",
   technologies: "Why this dependency is here and what it's used for in *this* repo, not what its own docs say. Link to the files that use it.",

@@ -96,6 +96,7 @@ const ALL_SECTIONS = [
   "start-here",
   "getting-started",
   "guides",
+  "onboarding",
   "how-it-works",
   "technologies",
   "cookbook",
