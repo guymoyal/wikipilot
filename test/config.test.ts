@@ -77,3 +77,14 @@ test("readConfig fills in sections when a config names only a preset", () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("technical and all presets include onboarding; user-guide does not", () => {
+  assert.ok(sectionsForPreset("technical").includes("onboarding"));
+  assert.ok(sectionsForPreset("all").includes("onboarding"));
+  assert.ok(!sectionsForPreset("user-guide").includes("onboarding"));
+  // Reader order: onboarding opens the dev-facing half.
+  const technical = sectionsForPreset("technical");
+  assert.equal(technical[1], "onboarding");
+  const all = sectionsForPreset("all");
+  assert.equal(all.indexOf("onboarding"), all.indexOf("guides") + 1);
+});
