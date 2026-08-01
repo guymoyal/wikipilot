@@ -42,8 +42,6 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && mkdir -p dist/lib/site/assets && cp -R src/lib/site/assets/. dist/lib/site/assets/",
     "dev": "tsc -p tsconfig.json --watch",
-    "dev:site": "pnpm --filter wikipilot-site dev",
-    "dev:cloud": "pnpm --filter wikipilot-cloud dev",
     "start": "node ./dist/bin/wikipilot.js",
     "test": "node --import tsx --test test/*.test.ts",
     "prepublishOnly": "npm run build"
