@@ -66,3 +66,26 @@ test("draftContent surfaces real package.json scripts in the cookbook", () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("draftContent emits an onboarding stub for the all preset with real detected commands", () => {
+  const dir = makeFixtureRepo();
+  try {
+    const pages = draftContent(dir);
+    const onboarding = pages.find((p) => p.section === "onboarding" && p.slug === "index");
+    assert.ok(onboarding, "expected an onboarding/index page");
+    assert.ok(onboarding.body.includes("npm run test"), "detected scripts appear as day-one commands");
+    assert.ok(onboarding.body.includes("`src/`"), "repo tour lists top-level directories");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("draftContent omits onboarding for the user-guide preset", () => {
+  const dir = makeFixtureRepo();
+  try {
+    const pages = draftContent(dir, "user-guide");
+    assert.ok(!pages.some((p) => p.section === "onboarding"));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
