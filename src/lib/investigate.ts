@@ -173,6 +173,36 @@ function sectionGuidance(sections: string[]): string {
 }
 
 /**
+ * The pages a professional wiki cannot ship without, filtered to the sections
+ * this wiki actually has. Kept out of SECTION_BRIEFS because these are
+ * init-time demands on specific pages, not descriptions of whole sections.
+ */
+function requiredPagesGuidance(sections: string[]): string {
+  const bars: Array<[section: string, bar: string]> = [
+    [
+      "start-here",
+      "`start-here/overview` — opens with the product narrative: what the product does, who uses it, and its 2-4 main use cases, before any repo detail. Ends with a map of where each kind of reader goes next. Never a directory listing.",
+    ],
+    [
+      "how-it-works",
+      "one `how-it-works` page carries an end-to-end user-flow diagram: the user's journey as a mermaid flowchart or sequenceDiagram (user action, system steps, visible result), distinct from the internal architecture diagram. Both derived from code you traced.",
+    ],
+    [
+      "onboarding",
+      "`onboarding/index` — a new developer's day one: environment setup with commands verified against the repo's scripts, a repo tour explaining where things live and why, a \"your first change\" walkthrough pointing at a real low-risk location, and how to run the tests.",
+    ],
+    [
+      "technologies",
+      "every technologies page states why this technology serves this project — verified from code or config, or explicitly marked as an open question — plus a snippet copied from this repo showing characteristic use, linking the files that import it.",
+    ],
+  ];
+  return bars
+    .filter(([section]) => sections.includes(section))
+    .map(([, bar]) => `- ${bar}`)
+    .join("\n");
+}
+
+/**
  * The methodology here mirrors docs/wiki-init-skills.md (the human/skill-facing
  * spec); keep the two in sync when either changes.
  */
@@ -192,18 +222,23 @@ export function buildSystemPrompt(config: WikipilotConfig, facts: { sha: string;
 Work through these in order; keep going until you can sketch the architecture from memory:
 
 1. Entry points: the package manifest (bin, main, exports, scripts), Dockerfiles, CI workflows. These say what the project IS before any README claim does.
-2. The primary flow, end to end: pick the thing a user most obviously does and read the code path from entry to result. This trace becomes the backbone of how-it-works and its diagrams.
-3. The tests: they state intended behaviour more honestly than comments. Harvest named guarantees.
-4. Configuration surface: env vars, config files, CLI flags, defaults.
-5. Data model: schemas, migrations, type definitions.
-6. Dependencies, with receipts: for each direct dependency, find the files that import it and what it is used for in THIS repo. A paraphrase of the dependency's own README is not a finding.
-7. Boundaries and non-goals: what the project deliberately does not do.
+2. The product surface: UI routes or screens, CLI commands, API endpoints, exported entry points. From these, answer: who uses this, what problem it solves for them, and the user's journey — the sequence of user-visible steps from first contact to the core result. For a library or CLI the journey is the primary usage path; never invent a funnel the code does not show.
+3. The primary flow, end to end: pick the thing a user most obviously does and read the code path from entry to result. This trace becomes the backbone of how-it-works and its diagrams.
+4. The tests: they state intended behaviour more honestly than comments. Harvest named guarantees.
+5. Configuration surface: env vars, config files, CLI flags, defaults.
+6. Data model: schemas, migrations, type definitions.
+7. Dependencies, with receipts: for each direct dependency, find the files that import it and what it is used for in THIS repo. A paraphrase of the dependency's own README is not a finding.
+8. Boundaries and non-goals: what the project deliberately does not do.
 
 If the investigation comes up nearly empty (a scaffold with no source), that is itself the finding: write the few pages the evidence supports, say plainly what does not exist yet, and skip the rest. Never manufacture content to make an empty repo look documented.
 
 ## Phase 2 — Plan the page map
 
 Decide what pages this repo actually needs. The drafted stubs are suggestions: rewrite them in place when the topic is right, replace them when it is not. A section's index slug is its landing page. For a mid-sized repo, 10-20 substantial pages is a reasonable shape — but the evidence sets the number. Skip a section rather than pad it: three real FAQ entries beat ten invented ones.
+
+Required pages — this wiki is rejected without them:
+
+${requiredPagesGuidance(config.sections)}
 
 ## Phase 3 — Authoring rules
 
@@ -225,6 +260,16 @@ ${sectionGuidance(config.sections)}
 - "Robust, flexible, powerful" filler — state the concrete fact or delete the sentence.
 - FAQ or troubleshooting entries invented to fill space.
 - A "why" stated with confidence that the code does not support — mark it as an open question instead.
+
+## Before you call finish
+
+Walk this checklist page by page; a failed item means fix it, then finish:
+
+- Every required page above exists and meets its stated bar.
+- No mechanical-draft placeholder text survives anywhere.
+- Cross-section links use the ../../<section>/<slug>/ form; same-section links use ../<slug>/.
+- Every diagram has one intro sentence and at most ~12 nodes.
+- Every page's sources are the narrowest globs that truly cover it.
 
 ## This wiki
 

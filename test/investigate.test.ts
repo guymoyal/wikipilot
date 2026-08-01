@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
-import { investigate, DEFAULT_INIT_MODEL, type CreateMessage } from "../src/lib/investigate.js";
+import { investigate, buildSystemPrompt, DEFAULT_INIT_MODEL, type CreateMessage } from "../src/lib/investigate.js";
 import { configForPreset } from "../src/lib/config.js";
 import { parseFrontmatter } from "../src/lib/frontmatter.js";
 
@@ -359,4 +359,23 @@ test("a text-only reply ends the run as finished with that text as summary", asy
   } finally {
     rmSync(fx.outerDir, { recursive: true, force: true });
   }
+});
+
+test("buildSystemPrompt demands product narrative, user-flow diagram, onboarding, and tech rationale for the all preset", () => {
+  const prompt = buildSystemPrompt(configForPreset("all"), { sha: "abc1234", locale: "en" });
+  assert.match(prompt, /user's journey/);
+  assert.match(prompt, /start-here\/overview/);
+  assert.match(prompt, /user-flow diagram/);
+  assert.match(prompt, /onboarding\/index/);
+  assert.match(prompt, /why this technology serves this project/i);
+  assert.match(prompt, /Before you call finish/);
+});
+
+test("buildSystemPrompt omits required pages whose sections are not in this wiki", () => {
+  const prompt = buildSystemPrompt(configForPreset("user-guide"), { sha: "abc1234", locale: "en" });
+  assert.ok(!prompt.includes("onboarding/index"));
+  assert.ok(!prompt.includes("why this technology serves this project"));
+  // The product narrative applies to every preset.
+  assert.match(prompt, /start-here\/overview/);
+  assert.match(prompt, /Before you call finish/);
 });
