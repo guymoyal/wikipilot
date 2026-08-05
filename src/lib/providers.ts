@@ -13,6 +13,8 @@ export interface ProviderInfo {
   defaultModel?: string;
   /** OpenAI-compatible base URL. Absent for anthropic (SDK) and custom (user-supplied). */
   baseUrl?: string;
+  /** Where to go get a key for this provider. Absent for custom — there's no single place. */
+  keyUrl?: string;
 }
 
 export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
@@ -21,6 +23,7 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
     label: "Claude — the default, and what the investigation prompt is tuned on",
     envVar: "ANTHROPIC_API_KEY",
     defaultModel: "claude-sonnet-5",
+    keyUrl: "https://console.anthropic.com/settings/keys",
   },
   openai: {
     id: "openai",
@@ -28,6 +31,7 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
     envVar: "OPENAI_API_KEY",
     defaultModel: "gpt-5.5",
     baseUrl: "https://api.openai.com/v1",
+    keyUrl: "https://platform.openai.com/api-keys",
   },
   gemini: {
     id: "gemini",
@@ -35,6 +39,7 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
     envVar: "GEMINI_API_KEY",
     defaultModel: "gemini-3.5-flash",
     baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+    keyUrl: "https://aistudio.google.com/apikey",
   },
   custom: {
     id: "custom",
@@ -124,7 +129,14 @@ export function toOpenAIRequest(req: Anthropic.MessageCreateParamsNonStreaming):
 
 /** OpenAI chat.completions response → the Anthropic Message shape the loop expects. */
 export function fromOpenAIResponse(json: JsonRecord, model: string): Anthropic.Message {
-  const choice = (json.choices as JsonRecord[] | undefined)?.[0] ?? {};
+  const choices = json.choices as JsonRecord[] | undefined;
+  if (!choices || choices.length === 0) {
+    // Some OpenAI-compatible proxies answer 200 with an `{"error":{...}}` body
+    // instead of a proper HTTP error — surface the body so it isn't mistaken
+    // for a well-formed empty reply.
+    throw new Error(`provider response has no choices: ${JSON.stringify(json).slice(0, 300)}`);
+  }
+  const choice = choices[0];
   const message = (choice.message as JsonRecord | undefined) ?? {};
   const content: Anthropic.ContentBlock[] = [];
 
@@ -147,9 +159,17 @@ export function fromOpenAIResponse(json: JsonRecord, model: string): Anthropic.M
     } as Anthropic.ToolUseBlock);
   }
 
+  // Derived from what the model actually did, not the finish_reason label:
+  // some OpenAI-compatible providers (Gemini's compat layer, llama.cpp, vLLM,
+  // certain OpenRouter upstreams) report finish_reason "stop" even when the
+  // message carries tool_calls, which would otherwise end the loop after one
+  // turn reporting success with nothing written.
   const finish = choice.finish_reason;
-  const stopReason: Anthropic.Message["stop_reason"] =
-    finish === "tool_calls" ? "tool_use" : finish === "length" ? "max_tokens" : "end_turn";
+  const stopReason: Anthropic.Message["stop_reason"] = content.some((b) => b.type === "tool_use")
+    ? "tool_use"
+    : finish === "length"
+      ? "max_tokens"
+      : "end_turn";
 
   const usage = (json.usage as JsonRecord | undefined) ?? {};
   const details = (usage.prompt_tokens_details as JsonRecord | undefined) ?? {};
@@ -176,28 +196,65 @@ export interface OpenAICompatOptions {
   apiKey: string;
   /** Injected so tests can script the endpoint without a network. */
   fetchImpl?: typeof fetch;
+  /** Injected so tests don't wait out the real backoff delays. */
+  sleepImpl?: (ms: number) => Promise<void>;
+}
+
+/** Matches the Anthropic SDK's default: a run shouldn't hang forever on a stuck connection. */
+const REQUEST_TIMEOUT_MS = 600_000;
+
+/** Two retries, ~1s then ~4s — enough to ride out a rate limit or a blip without stalling the loop for long. */
+const RETRY_DELAYS_MS = [1000, 4000];
+
+function isRetryableStatus(status: number): boolean {
+  return status === 429 || (status >= 500 && status < 600);
 }
 
 /**
  * A CreateMessage backed by any OpenAI-compatible /chat/completions endpoint.
  * Newer OpenAI models require max_completion_tokens; older servers and some
- * compatibles only know max_tokens — on a 400 naming the parameter, retry once.
+ * compatibles only know max_tokens — on a 400 naming the parameter, fall back
+ * once and remember it, so every later request in this run sends max_tokens
+ * directly instead of paying for the failed attempt again.
  */
 export function createOpenAICompatMessage(options: OpenAICompatOptions): CreateMessage {
   const doFetch = options.fetchImpl ?? fetch;
+  const sleep = options.sleepImpl ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const endpoint = options.baseUrl.replace(/\/+$/, "") + "/chat/completions";
   const headers = { "content-type": "application/json", authorization: `Bearer ${options.apiKey}` };
+  let useMaxTokens = false;
+
+  /** Retries 429/5xx with backoff; any other status (ok or not) is returned as-is for the caller to interpret. */
+  async function fetchWithRetry(body: JsonRecord): Promise<Response> {
+    for (let attempt = 0; ; attempt++) {
+      const response = await doFetch(endpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      if (response.ok || !isRetryableStatus(response.status) || attempt >= RETRY_DELAYS_MS.length) {
+        return response;
+      }
+      await sleep(RETRY_DELAYS_MS[attempt]);
+    }
+  }
 
   return async (req) => {
     const body = toOpenAIRequest(req);
-    let response = await doFetch(endpoint, { method: "POST", headers, body: JSON.stringify(body) });
+    if (useMaxTokens) {
+      body.max_tokens = body.max_completion_tokens;
+      delete body.max_completion_tokens;
+    }
+    let response = await fetchWithRetry(body);
 
     if (!response.ok) {
       const text = await response.text();
       if (response.status === 400 && text.includes("max_completion_tokens")) {
+        useMaxTokens = true;
         const retry: JsonRecord = { ...body, max_tokens: body.max_completion_tokens };
         delete retry.max_completion_tokens;
-        response = await doFetch(endpoint, { method: "POST", headers, body: JSON.stringify(retry) });
+        response = await fetchWithRetry(retry);
         if (!response.ok) {
           throw new Error(`provider returned ${response.status}: ${(await response.text()).slice(0, 300)}`);
         }
