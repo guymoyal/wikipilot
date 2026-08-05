@@ -8,6 +8,7 @@ import { serveSite } from "../lib/site/serve.js";
 import { startAgentServer } from "../lib/site/agentServer.js";
 import { DEFAULT_PRESET, PRESETS, readConfig } from "../lib/config.js";
 import { resolvePreset, resolveAiPlan, type PresetOptions, type AiOptions, type PromptIO } from "../lib/wizard.js";
+import { PROVIDERS } from "../lib/providers.js";
 import { loadDotEnv, saveEnvKey } from "../lib/env.js";
 import { investigate, DEFAULT_INIT_MODEL } from "../lib/investigate.js";
 import { readFileSync } from "node:fs";
@@ -116,10 +117,12 @@ program
   .option("--site-name <name>", "name shown in the built site's header (defaults to the project name)")
   .option("-y, --yes", `skip the prompts: "${DEFAULT_PRESET}" preset, no AI pass unless --ai is given`)
   .option("--no-skill", "skip scaffolding the .claude/skills/update-wiki sync skill")
-  .option("--ai", "run the AI deep-investigation pass (needs an Anthropic API key)")
+  .option("--ai", "run the AI deep-investigation pass (needs an API key — Anthropic by default)")
   .option("--no-ai", "skip the AI pass and the prompt for it")
-  .option("--model <name>", `model for the AI pass (default ${DEFAULT_INIT_MODEL}, or WIKI_INIT_MODEL)`)
-  .action(async (target: string, opts: { out: string; preset?: string; siteName?: string; yes?: boolean; skill: boolean; ai?: boolean; model?: string }) => {
+  .option("--model <name>", `model for the AI pass (default ${DEFAULT_INIT_MODEL}, or WIKI_INIT_MODEL on the Claude provider)`)
+  .option("--provider <name>", "AI provider for the investigation: anthropic | openai | gemini | custom (default anthropic)")
+  .option("--base-url <url>", "OpenAI-compatible endpoint for --provider custom")
+  .action(async (target: string, opts: { out: string; preset?: string; siteName?: string; yes?: boolean; skill: boolean; ai?: boolean; model?: string; provider?: string; baseUrl?: string }) => {
     const targetDir = resolve(process.cwd(), target);
     const wikiDir = resolve(process.cwd(), opts.out);
 
@@ -136,12 +139,12 @@ program
         }
 
         loadDotEnv(targetDir);
-        const plan = await resolveAiPlan(opts as AiOptions, io, process.env.ANTHROPIC_API_KEY);
+        const plan = await resolveAiPlan(opts as AiOptions, io, process.env);
         return { result, plan };
       });
 
       if (plan.saveKey && plan.apiKey) {
-        saveEnvKey(targetDir, "ANTHROPIC_API_KEY", plan.apiKey);
+        saveEnvKey(targetDir, PROVIDERS[plan.provider].envVar, plan.apiKey);
         console.log(`           saved the key to ${short(join(targetDir, ".env"))} (gitignored)`);
       }
 
@@ -152,7 +155,9 @@ program
             targetDir,
             wikiDir,
             config,
-            model: opts.model,
+            model: opts.model ?? plan.model,
+            provider: plan.provider,
+            baseUrl: opts.baseUrl ?? plan.baseUrl,
             apiKey: plan.apiKey,
             report: (line) => console.log(`  ${line}`),
           });
@@ -163,7 +168,11 @@ program
           console.error(`wikipilot: AI pass failed (${(err as Error).message}) — the drafted wiki is intact.`);
         }
       } else if (opts.ai === true && !plan.enabled) {
-        console.log("wikipilot: --ai requested but no ANTHROPIC_API_KEY found — wrote the mechanical draft only.");
+        if (plan.disabledReason === "custom-incomplete") {
+          console.log("wikipilot: --ai requested but --provider custom needs both --base-url and --model — wrote the mechanical draft only.");
+        } else {
+          console.log(`wikipilot: --ai requested but no ${PROVIDERS[plan.provider].envVar} found — wrote the mechanical draft only.`);
+        }
       }
 
       const outFlag = opts.out === "./wiki" ? "" : ` ${short(result.wikiDir)}`;

@@ -35,12 +35,16 @@ server-side code. It executes nothing at request time.
 serves only files inside the built output directory. It is not hardened for
 public hosting — use a real web server for that.
 
-**`wikipilot init` can spend your Anthropic API key too.** The optional
-deep-investigation pass is a bounded one-shot run from your terminal: the key
-comes from your environment or the repo's `.env`, requests go only to the
-Anthropic API, and its tool loop is capped in turns and bytes read. If you
-choose to save a typed key, init appends it to `.env` and makes sure `.env` is
-gitignored.
+**`wikipilot init` can spend an API key too.** The optional deep-investigation
+pass is a bounded one-shot run from your terminal: the key comes from your
+environment or the repo's `.env`, and its tool loop is capped in turns and
+bytes read. Where the conversation goes depends on `--provider`: with the
+default (Anthropic), requests go to the Anthropic API; choosing `openai` or
+`gemini` sends the conversation and that provider's key to that provider's
+own endpoint; choosing `custom` sends both to whatever OpenAI-compatible URL
+you pass as `--base-url` — only point it at an endpoint you trust. If you
+choose to save a typed key, init appends it to `.env` and makes sure `.env`
+is gitignored.
 
 **`wikipilot agent` spends your Anthropic API key.** It binds to `127.0.0.1` by
 default. Exposing it (`--host 0.0.0.0`) means anyone who can reach the port can

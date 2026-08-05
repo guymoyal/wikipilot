@@ -35,3 +35,11 @@ export { investigate, buildSystemPrompt, estimateCostUsd, DEFAULT_INIT_MODEL } f
 export type { InvestigateOptions, InvestigateResult, InvestigateUsage, CreateMessage } from "./investigate.js";
 export { resolvePreset, resolveAiPlan } from "./wizard.js";
 export type { PromptIO, PresetOptions, AiOptions, AiPlan, PresetChoice } from "./wizard.js";
+export {
+  PROVIDERS,
+  PROVIDER_IDS,
+  isProviderId,
+  createOpenAICompatMessage,
+  type ProviderId,
+  type ProviderInfo,
+} from "./providers.js";

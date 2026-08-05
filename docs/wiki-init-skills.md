@@ -19,8 +19,9 @@ This skill covers the *initial* build. Ongoing maintenance (sync, audit,
 authoring single pages later) belongs to the `update-wiki` skill that `init`
 scaffolds into `.claude/skills/update-wiki/`.
 
-`wikipilot init` can also run this investigation itself: with an
-`ANTHROPIC_API_KEY` available it offers a deep-investigation pass
+`wikipilot init` can also run this investigation itself: with an API key
+available — Claude by default, or another provider chosen with `--provider`
+(`src/lib/providers.ts`) — it offers a deep-investigation pass
 (`src/lib/investigate.ts`) whose system prompt mirrors the phases below. Keep
 the two in sync when either changes.
 
