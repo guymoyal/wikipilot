@@ -8,6 +8,7 @@ import { serveSite } from "../lib/site/serve.js";
 import { startAgentServer } from "../lib/site/agentServer.js";
 import { DEFAULT_PRESET, PRESETS, readConfig } from "../lib/config.js";
 import { resolvePreset, resolveAiPlan, type PresetOptions, type AiOptions, type PromptIO } from "../lib/wizard.js";
+import { PROVIDERS } from "../lib/providers.js";
 import { loadDotEnv, saveEnvKey } from "../lib/env.js";
 import { investigate, DEFAULT_INIT_MODEL } from "../lib/investigate.js";
 import { readFileSync } from "node:fs";
@@ -116,7 +117,7 @@ program
   .option("--site-name <name>", "name shown in the built site's header (defaults to the project name)")
   .option("-y, --yes", `skip the prompts: "${DEFAULT_PRESET}" preset, no AI pass unless --ai is given`)
   .option("--no-skill", "skip scaffolding the .claude/skills/update-wiki sync skill")
-  .option("--ai", "run the AI deep-investigation pass (needs an Anthropic API key)")
+  .option("--ai", "run the AI deep-investigation pass (needs an API key for the chosen provider)")
   .option("--no-ai", "skip the AI pass and the prompt for it")
   .option("--model <name>", `model for the AI pass (default ${DEFAULT_INIT_MODEL}, or WIKI_INIT_MODEL)`)
   .action(async (target: string, opts: { out: string; preset?: string; siteName?: string; yes?: boolean; skill: boolean; ai?: boolean; model?: string }) => {
@@ -136,12 +137,12 @@ program
         }
 
         loadDotEnv(targetDir);
-        const plan = await resolveAiPlan(opts as AiOptions, io, process.env.ANTHROPIC_API_KEY);
+        const plan = await resolveAiPlan(opts as AiOptions, io, process.env);
         return { result, plan };
       });
 
       if (plan.saveKey && plan.apiKey) {
-        saveEnvKey(targetDir, "ANTHROPIC_API_KEY", plan.apiKey);
+        saveEnvKey(targetDir, PROVIDERS[plan.provider].envVar, plan.apiKey);
         console.log(`           saved the key to ${short(join(targetDir, ".env"))} (gitignored)`);
       }
 
@@ -163,7 +164,7 @@ program
           console.error(`wikipilot: AI pass failed (${(err as Error).message}) — the drafted wiki is intact.`);
         }
       } else if (opts.ai === true && !plan.enabled) {
-        console.log("wikipilot: --ai requested but no ANTHROPIC_API_KEY found — wrote the mechanical draft only.");
+        console.log(`wikipilot: --ai requested but no ${PROVIDERS[plan.provider].envVar} found — wrote the mechanical draft only.`);
       }
 
       const outFlag = opts.out === "./wiki" ? "" : ` ${short(result.wikiDir)}`;

@@ -1,4 +1,5 @@
 import { DEFAULT_PRESET, PRESETS, isWikiPreset, type WikiPreset } from "./config.js";
+import { PROVIDERS, PROVIDER_IDS, isProviderId, type ProviderId } from "./providers.js";
 
 export interface PresetChoice {
   preset: WikiPreset;
@@ -76,6 +77,13 @@ export async function resolvePreset(options: PresetOptions, io: PromptIO): Promi
 
 export interface AiPlan {
   enabled: boolean;
+  provider: ProviderId;
+  /** Only set for a custom provider — the model the user typed. Other providers
+   *  leave this undefined so `investigate` falls through to the registry default /
+   *  WIKI_INIT_MODEL / --model. */
+  model?: string;
+  /** Only set for a custom provider — its OpenAI-compatible endpoint. */
+  baseUrl?: string;
   /** Key for this run — from the environment/.env, or freshly typed. */
   apiKey?: string;
   /** The user asked for a freshly-typed key to be persisted to the repo's .env. */
@@ -85,45 +93,112 @@ export interface AiPlan {
 /** Commander tri-state: `--ai` → true, `--no-ai` → false, neither → undefined. */
 export interface AiOptions {
   ai?: boolean;
+  provider?: string;
+  baseUrl?: string;
+  model?: string;
 }
 
 const YES = /^(y|yes)$/i;
 const NO = /^(n|no)$/i;
 
+/** Mirrors `resolvePreset`'s loop shape: numbered list, re-ask on a miss, fall back to the first option. */
+async function askProvider(io: PromptIO): Promise<ProviderId> {
+  io.print("\nWhich AI provider should draft the wiki?\n");
+  PROVIDER_IDS.forEach((id, i) => {
+    io.print(`  ${i + 1}) ${PROVIDERS[id].label}`);
+  });
+
+  for (let attempt = 0; attempt < MAX_PROMPT_ATTEMPTS; attempt++) {
+    const answer = (await io.ask(`Choose 1-${PROVIDER_IDS.length} [1]: `)).trim().toLowerCase();
+    if (!answer) return PROVIDER_IDS[0];
+
+    const byNumber = PROVIDER_IDS[Number(answer) - 1];
+    if (byNumber && /^\d+$/.test(answer)) return byNumber;
+    if (isProviderId(answer)) return answer;
+
+    io.print(`  Not one of the options — enter 1-${PROVIDER_IDS.length}.`);
+  }
+
+  io.print("  Falling back to Claude.");
+  return PROVIDER_IDS[0];
+}
+
 /**
- * Decides whether init runs the AI deep-investigation pass, and with which key.
- * Non-interactive runs never prompt: they need an explicit `--ai` plus a key
- * already in the environment, so CI can't hang and can't spend money by accident.
+ * Decides whether init runs the AI deep-investigation pass, with which provider,
+ * and with which key. Non-interactive runs never prompt: they need an explicit
+ * `--ai` plus a key already in the environment (and, for a custom provider, a
+ * base URL and model), so CI can't hang and can't spend money by accident.
  */
 export async function resolveAiPlan(
   options: AiOptions,
   io: PromptIO,
-  envKey: string | undefined,
+  env: Record<string, string | undefined>,
 ): Promise<AiPlan> {
-  if (options.ai === false) return { enabled: false, saveKey: false };
+  if (options.ai === false) return { enabled: false, provider: "anthropic", saveKey: false };
+
+  let provider: ProviderId = "anthropic";
+  const providerGiven = options.provider !== undefined;
+  if (providerGiven) {
+    if (!isProviderId(options.provider!)) {
+      throw new Error(`unknown provider "${options.provider}" — expected one of: ${PROVIDER_IDS.join(", ")}`);
+    }
+    provider = options.provider!;
+  }
 
   if (!io.interactive) {
-    if (options.ai === true && envKey) return { enabled: true, apiKey: envKey, saveKey: false };
-    return { enabled: false, saveKey: false };
+    if (options.ai !== true) return { enabled: false, provider, saveKey: false };
+
+    const key = env[PROVIDERS[provider].envVar];
+    if (!key) return { enabled: false, provider, saveKey: false };
+    if (provider === "custom" && !(options.baseUrl && options.model)) {
+      return { enabled: false, provider, saveKey: false };
+    }
+
+    return {
+      enabled: true,
+      provider,
+      apiKey: key,
+      saveKey: false,
+      ...(provider === "custom" ? { baseUrl: options.baseUrl, model: options.model } : {}),
+    };
   }
 
   if (options.ai === undefined) {
     const answer = (await io.ask("\nRun the AI deep investigation now? [Y/n] ")).trim();
     if (answer && !YES.test(answer)) {
       if (!NO.test(answer)) io.print("  Taking that as a no.");
-      return { enabled: false, saveKey: false };
+      return { enabled: false, provider, saveKey: false };
     }
   }
 
-  if (envKey) return { enabled: true, apiKey: envKey, saveKey: false };
+  if (!providerGiven) provider = await askProvider(io);
+  const info = PROVIDERS[provider];
 
-  io.print("  This needs an Anthropic API key (console.anthropic.com/settings/keys).");
-  const typed = (await io.ask("  Paste your Anthropic API key: ")).trim();
+  let baseUrl: string | undefined;
+  let model: string | undefined;
+  if (provider === "custom") {
+    const typedBaseUrl = (await io.ask("  OpenAI-compatible base URL: ")).trim();
+    const typedModel = (await io.ask("  Model name: ")).trim();
+    if (!typedBaseUrl || !typedModel) {
+      io.print("  Both a base URL and a model are required for a custom provider — keeping the mechanical draft.");
+      return { enabled: false, provider, saveKey: false };
+    }
+    baseUrl = typedBaseUrl;
+    model = typedModel;
+  }
+
+  const extra = provider === "custom" ? { baseUrl, model } : {};
+
+  const envKey = env[info.envVar];
+  if (envKey) return { enabled: true, provider, apiKey: envKey, saveKey: false, ...extra };
+
+  io.print(`  This needs an API key (it will be read as ${info.envVar}).`);
+  const typed = (await io.ask("  Paste your API key: ")).trim();
   if (!typed) {
     io.print("  No key — keeping the mechanical draft. Re-run with a key to upgrade it.");
-    return { enabled: false, saveKey: false };
+    return { enabled: false, provider, saveKey: false };
   }
 
   const save = (await io.ask("  Save it to .env for next time? [y/N] ")).trim();
-  return { enabled: true, apiKey: typed, saveKey: YES.test(save) };
+  return { enabled: true, provider, apiKey: typed, saveKey: YES.test(save), ...extra };
 }
