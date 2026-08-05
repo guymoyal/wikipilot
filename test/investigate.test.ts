@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
 import { investigate, buildSystemPrompt, DEFAULT_INIT_MODEL, type CreateMessage } from "../src/lib/investigate.js";
+import { createOpenAICompatMessage } from "../src/lib/providers.js";
 import { configForPreset } from "../src/lib/config.js";
 import { parseFrontmatter } from "../src/lib/frontmatter.js";
 
@@ -376,6 +377,79 @@ test("a text-only reply ends the run as finished with that text as summary", asy
     const result = await investigate({ targetDir: fx.targetDir, wikiDir: fx.wikiDir, config: configForPreset("all"), createMessage });
     assert.equal(result.stopped, "finished");
     assert.match(result.summary, /nothing to document/);
+  } finally {
+    rmSync(fx.outerDir, { recursive: true, force: true });
+  }
+});
+
+/** Scripts an OpenAI-compatible /chat/completions endpoint: each call pops the next JSON body. */
+function scriptedFetch(bodies: unknown[]): typeof fetch {
+  const queue = [...bodies];
+  return (async () => {
+    const next = queue.shift();
+    if (!next) throw new Error("scripted fetch ran out of responses");
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify(next),
+      json: async () => next,
+    } as Response;
+  }) as typeof fetch;
+}
+
+test("the OpenAI-compatible adapter composes with the investigation loop end to end", async () => {
+  const fx = makeFixture();
+  try {
+    const fetchImpl = scriptedFetch([
+      {
+        id: "chatcmpl-1",
+        model: "test-model",
+        choices: [
+          {
+            message: {
+              role: "assistant",
+              content: null,
+              tool_calls: [
+                { id: "call_1", type: "function", function: { name: "write_page", arguments: JSON.stringify(PAGE_INPUT) } },
+              ],
+            },
+            finish_reason: "tool_calls",
+          },
+        ],
+        usage: { prompt_tokens: 321, completion_tokens: 12 },
+      },
+      {
+        id: "chatcmpl-2",
+        model: "test-model",
+        choices: [
+          {
+            message: {
+              role: "assistant",
+              content: null,
+              tool_calls: [
+                { id: "call_2", type: "function", function: { name: "finish", arguments: JSON.stringify({ summary: "done via adapter" }) } },
+              ],
+            },
+            finish_reason: "tool_calls",
+          },
+        ],
+        usage: { prompt_tokens: 47, completion_tokens: 5 },
+      },
+    ]);
+    const createMessage = createOpenAICompatMessage({ baseUrl: "https://example.test/v1", apiKey: "test-key", fetchImpl });
+
+    const result = await investigate({
+      targetDir: fx.targetDir,
+      wikiDir: fx.wikiDir,
+      config: configForPreset("all"),
+      createMessage,
+    });
+
+    assert.equal(result.pagesWritten, 1);
+    assert.equal(result.stopped, "finished");
+    assert.equal(result.usage.inputTokens, 321 + 47);
+    const path = join(fx.wikiDir, "content", "en", "start-here", "overview.md");
+    assert.ok(existsSync(path), "the adapter's write_page call must reach the real filesystem");
   } finally {
     rmSync(fx.outerDir, { recursive: true, force: true });
   }

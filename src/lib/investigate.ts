@@ -6,6 +6,7 @@ import { DEFAULT_IGNORE } from "./scan.js";
 import { getGitSha } from "./draft.js";
 import { SECTION_BRIEFS } from "./skill.js";
 import { renderPage, type PageFrontmatter } from "./frontmatter.js";
+import { PROVIDERS, createOpenAICompatMessage, type ProviderId } from "./providers.js";
 
 export const DEFAULT_INIT_MODEL = "claude-sonnet-5";
 
@@ -18,6 +19,10 @@ export interface InvestigateOptions {
   config: WikipilotConfig;
   model?: string;
   apiKey?: string;
+  /** Which provider to talk to. Absent or "anthropic" uses the Anthropic SDK directly. */
+  provider?: ProviderId;
+  /** OpenAI-compatible base URL, required for "custom" when not otherwise known. */
+  baseUrl?: string;
   /** Progress lines. The lib never touches the console; the CLI passes console.log. */
   report?: (line: string) => void;
   createMessage?: CreateMessage;
@@ -286,7 +291,8 @@ interface ToolOutcome {
 
 export async function investigate(options: InvestigateOptions): Promise<InvestigateResult> {
   const { targetDir, wikiDir, config } = options;
-  const model = options.model ?? process.env.WIKI_INIT_MODEL ?? DEFAULT_INIT_MODEL;
+  const provider = options.provider ?? "anthropic";
+  const model = options.model ?? process.env.WIKI_INIT_MODEL ?? PROVIDERS[provider].defaultModel ?? DEFAULT_INIT_MODEL;
   const report = options.report ?? (() => {});
   const maxTurns = options.maxTurns ?? 150;
   // The read budget caps spend AND keeps the conversation inside the model's
@@ -301,8 +307,14 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
   const createMessage: CreateMessage =
     options.createMessage ??
     (() => {
-      const client = new Anthropic(options.apiKey ? { apiKey: options.apiKey } : {});
-      return (req) => client.messages.create(req);
+      if (provider === "anthropic") {
+        const client = new Anthropic(options.apiKey ? { apiKey: options.apiKey } : {});
+        return (req) => client.messages.create(req);
+      }
+      const baseUrl = options.baseUrl ?? PROVIDERS[provider].baseUrl;
+      if (!baseUrl) throw new Error("custom provider needs a base URL (--base-url)");
+      if (!options.apiKey) throw new Error(`no API key for provider ${provider}`);
+      return createOpenAICompatMessage({ baseUrl, apiKey: options.apiKey });
     })();
 
   let pagesWritten = 0;
@@ -544,7 +556,9 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
     return [...history.slice(0, -1), { role: last.role, content: blocks }];
   }
 
-  report(`deep investigation with ${model} — this reads your code and can take several minutes`);
+  report(
+    `deep investigation with ${model}${provider === "anthropic" ? "" : ` via ${provider}`} — this reads your code and can take several minutes`,
+  );
 
   let turns = 0;
   while (turns < maxTurns) {
