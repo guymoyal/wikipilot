@@ -34,7 +34,7 @@ For repeat use:
 npm install -g wikipilot
 ```
 
-Requires Node.js 18 or newer. Nothing else — no config file, no account. An Anthropic API key is optional: with one, `init` can also run a deep-investigation pass where a Claude agent reads your code and rewrites the drafted pages from what it finds.
+Requires Node.js 18 or newer. Nothing else — no config file, no account. An API key is optional: with one, `init` can also run a deep-investigation pass where an AI agent reads your code and rewrites the drafted pages from what it finds. Claude is the default; OpenAI, Gemini, and other OpenAI-compatible endpoints work too.
 
 ## The whole loop
 
@@ -60,7 +60,7 @@ It doesn't scaffold empty placeholders: pages are drafted from your `package.jso
 
 It also writes a `.claude/skills/update-wiki` skill so Claude Code can author new pages and keep existing ones in sync — ask it to "update the wiki" or "audit the wiki".
 
-> **Everything above works without an API key.** `init`, `build`, and `serve` are fully local. Add an `ANTHROPIC_API_KEY` and `init` offers its deep-investigation pass — see [The AI deep investigation](#the-ai-deep-investigation) next. The same key powers the optional `wikipilot agent` chat widget — see [The AI assistant](#the-ai-assistant) below.
+> **Everything above works without an API key.** `init`, `build`, and `serve` are fully local. Add one and `init` offers its deep-investigation pass — Claude by default, or OpenAI, Gemini, and other OpenAI-compatible providers via `--provider` — see [The AI deep investigation](#the-ai-deep-investigation) next. `wikipilot agent`'s chat widget is Claude-only and needs `ANTHROPIC_API_KEY` specifically — see [The AI assistant](#the-ai-assistant) below.
 
 ## The AI deep investigation
 
@@ -81,7 +81,7 @@ No key for the chosen provider in your environment or the repo's `.env`? It prom
 
 - `--ai` — run the pass without asking (in CI: requires the key in the environment).
 - `--no-ai` — skip it, and the question.
-- `--model <name>` — pick the model; `WIKI_INIT_MODEL` works too.
+- `--model <name>` — pick the model; `WIKI_INIT_MODEL` works too, for the default Claude provider only — it's ignored for `--provider openai/gemini/custom`, so a Claude model id never lands where it doesn't belong.
 - `--provider <name>` — `anthropic` (default), `openai`, `gemini`, or `custom`.
 - `--base-url <url>` — the endpoint to call for `--provider custom`.
 

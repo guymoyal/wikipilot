@@ -292,7 +292,12 @@ interface ToolOutcome {
 export async function investigate(options: InvestigateOptions): Promise<InvestigateResult> {
   const { targetDir, wikiDir, config } = options;
   const provider = options.provider ?? "anthropic";
-  const model = options.model ?? process.env.WIKI_INIT_MODEL ?? PROVIDERS[provider].defaultModel ?? DEFAULT_INIT_MODEL;
+  // WIKI_INIT_MODEL is documented next to the provider keys in .env.example
+  // and typically holds a Claude model id — only the anthropic provider
+  // should ever see it, or a Claude model name gets sent to another
+  // provider's API.
+  const envModel = provider === "anthropic" ? process.env.WIKI_INIT_MODEL : undefined;
+  const model = options.model ?? envModel ?? PROVIDERS[provider].defaultModel ?? DEFAULT_INIT_MODEL;
   const report = options.report ?? (() => {});
   const maxTurns = options.maxTurns ?? 150;
   // The read budget caps spend AND keeps the conversation inside the model's

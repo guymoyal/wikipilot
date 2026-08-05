@@ -281,6 +281,75 @@ test("WIKI_INIT_MODEL overrides the default model", async () => {
   }
 });
 
+test("WIKI_INIT_MODEL is not sent to a non-anthropic provider", async () => {
+  const fx = makeFixture();
+  process.env.WIKI_INIT_MODEL = "claude-test-model";
+  try {
+    const { createMessage, requests } = scripted([message([toolUse("finish", { summary: "done" })])]);
+    await investigate({ targetDir: fx.targetDir, wikiDir: fx.wikiDir, config: configForPreset("all"), provider: "openai", createMessage });
+    assert.notEqual(requests[0].model, "claude-test-model", "a Claude model id must never be sent to another provider's API");
+    assert.equal(requests[0].model, "gpt-5.5", "falls through to the openai registry default instead");
+  } finally {
+    delete process.env.WIKI_INIT_MODEL;
+    rmSync(fx.outerDir, { recursive: true, force: true });
+  }
+});
+
+test("an explicit --model still wins over the registry default for a non-anthropic provider", async () => {
+  const fx = makeFixture();
+  try {
+    const { createMessage, requests } = scripted([message([toolUse("finish", { summary: "done" })])]);
+    await investigate({
+      targetDir: fx.targetDir,
+      wikiDir: fx.wikiDir,
+      config: configForPreset("all"),
+      provider: "openai",
+      model: "gpt-5.5-mini",
+      createMessage,
+    });
+    assert.equal(requests[0].model, "gpt-5.5-mini");
+  } finally {
+    rmSync(fx.outerDir, { recursive: true, force: true });
+  }
+});
+
+test("a custom provider without a base URL fails with an actionable error", async () => {
+  const fx = makeFixture();
+  try {
+    await assert.rejects(
+      () =>
+        investigate({
+          targetDir: fx.targetDir,
+          wikiDir: fx.wikiDir,
+          config: configForPreset("all"),
+          provider: "custom",
+          apiKey: "k",
+        }),
+      /custom provider needs a base URL/,
+    );
+  } finally {
+    rmSync(fx.outerDir, { recursive: true, force: true });
+  }
+});
+
+test("a non-anthropic provider without an API key fails with an actionable error", async () => {
+  const fx = makeFixture();
+  try {
+    await assert.rejects(
+      () =>
+        investigate({
+          targetDir: fx.targetDir,
+          wikiDir: fx.wikiDir,
+          config: configForPreset("all"),
+          provider: "openai",
+        }),
+      /no API key for provider/,
+    );
+  } finally {
+    rmSync(fx.outerDir, { recursive: true, force: true });
+  }
+});
+
 test("progress goes only through the injected reporter", async () => {
   const fx = makeFixture();
   try {
