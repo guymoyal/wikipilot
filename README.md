@@ -73,9 +73,11 @@ On an interactive terminal `init` asks before running it, then which provider sh
 | Anthropic (default) | `ANTHROPIC_API_KEY` | `claude-sonnet-5` |
 | OpenAI | `OPENAI_API_KEY` | `gpt-5.5` |
 | Google Gemini | `GEMINI_API_KEY` | `gemini-3.5-flash` |
-| Custom (OpenRouter, Ollama, LM Studio, anything OpenAI-compatible) | `WIKI_INIT_API_KEY` | none — pass `--model` |
+| Custom (OpenRouter, Ollama, LM Studio) | `WIKI_INIT_API_KEY` | none — pass `--model` |
 
-Claude is the default, and the investigation prompt above is written and tested against it; the other providers run the same prompt over an OpenAI-compatible chat-completions call, which works but has had far less real-world mileage. No key for the chosen provider in your environment or the repo's `.env`? It prompts for one (input hidden) and offers to save it to `.env`, keeping `.env` gitignored.
+Claude is the default, and the investigation prompt above is written and tested against it; the other providers run the same prompt over an OpenAI-compatible chat-completions call, which works but has had far less real-world mileage.
+
+No key for the chosen provider in your environment or the repo's `.env`? It prompts for one (input hidden) and offers to save it to `.env`, keeping `.env` gitignored.
 
 - `--ai` — run the pass without asking (in CI: requires the key in the environment).
 - `--no-ai` — skip it, and the question.
