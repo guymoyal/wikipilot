@@ -117,10 +117,12 @@ program
   .option("--site-name <name>", "name shown in the built site's header (defaults to the project name)")
   .option("-y, --yes", `skip the prompts: "${DEFAULT_PRESET}" preset, no AI pass unless --ai is given`)
   .option("--no-skill", "skip scaffolding the .claude/skills/update-wiki sync skill")
-  .option("--ai", "run the AI deep-investigation pass (needs an API key for the chosen provider)")
+  .option("--ai", "run the AI deep-investigation pass (needs an API key — Anthropic by default)")
   .option("--no-ai", "skip the AI pass and the prompt for it")
   .option("--model <name>", `model for the AI pass (default ${DEFAULT_INIT_MODEL}, or WIKI_INIT_MODEL)`)
-  .action(async (target: string, opts: { out: string; preset?: string; siteName?: string; yes?: boolean; skill: boolean; ai?: boolean; model?: string }) => {
+  .option("--provider <name>", "AI provider for the investigation: anthropic | openai | gemini | custom (default anthropic)")
+  .option("--base-url <url>", "OpenAI-compatible endpoint for --provider custom")
+  .action(async (target: string, opts: { out: string; preset?: string; siteName?: string; yes?: boolean; skill: boolean; ai?: boolean; model?: string; provider?: string; baseUrl?: string }) => {
     const targetDir = resolve(process.cwd(), target);
     const wikiDir = resolve(process.cwd(), opts.out);
 
@@ -153,7 +155,9 @@ program
             targetDir,
             wikiDir,
             config,
-            model: opts.model,
+            model: opts.model ?? plan.model,
+            provider: plan.provider,
+            baseUrl: opts.baseUrl ?? plan.baseUrl,
             apiKey: plan.apiKey,
             report: (line) => console.log(`  ${line}`),
           });
