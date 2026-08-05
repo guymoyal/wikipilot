@@ -233,11 +233,55 @@ test("non-interactive --ai with the right env var enables without prompting", as
   assert.equal(io.asked, 0, "non-interactive must never prompt");
 });
 
-test("non-interactive custom without base-url and model stays disabled", async () => {
+test("non-interactive custom without base-url and model stays disabled, naming the real cause", async () => {
   const io = fakeIO([], false);
   const plan = await resolveAiPlan({ ai: true, provider: "custom" }, io, { WIKI_INIT_API_KEY: "k" });
   assert.equal(plan.enabled, false);
+  assert.equal(plan.disabledReason, "custom-incomplete");
   assert.equal(io.asked, 0, "non-interactive must never prompt");
+});
+
+test("custom provider with both flags already set uses them without prompting for either", async () => {
+  const io = fakeIO(["", "4", "k-local", ""]); // run AI (Enter), provider 4 (custom), key, save? — no base-url/model prompts
+  const plan = await resolveAiPlan({ baseUrl: "http://localhost:11434/v1", model: "qwen3:32b" }, io, {});
+  assert.equal(plan.enabled, true);
+  assert.equal(plan.provider, "custom");
+  assert.equal(plan.baseUrl, "http://localhost:11434/v1");
+  assert.equal(plan.model, "qwen3:32b");
+  assert.equal(plan.apiKey, "k-local");
+});
+
+test("custom provider with only --base-url set still prompts for the model", async () => {
+  const io = fakeIO(["", "4", "qwen3:32b", "k-local", ""]);
+  const plan = await resolveAiPlan({ baseUrl: "http://localhost:11434/v1" }, io, {});
+  assert.equal(plan.enabled, true);
+  assert.equal(plan.baseUrl, "http://localhost:11434/v1");
+  assert.equal(plan.model, "qwen3:32b");
+});
+
+test("custom provider with --base-url set and an empty model answer is disabled, naming the real cause", async () => {
+  const io = fakeIO(["", "4", "  "]);
+  const plan = await resolveAiPlan({ baseUrl: "http://localhost:11434/v1" }, io, {});
+  assert.equal(plan.enabled, false);
+  assert.equal(plan.provider, "custom");
+  assert.equal(plan.disabledReason, "custom-incomplete");
+  assert.ok(io.output.some((l) => l.includes("base URL and a model are required")));
+});
+
+test("custom provider prompts on empty base-url and model carry disabledReason custom-incomplete", async () => {
+  const io = fakeIO(["", "4", "", "qwen3:32b"]);
+  const plan = await resolveAiPlan({}, io, {});
+  assert.equal(plan.enabled, false);
+  assert.equal(plan.disabledReason, "custom-incomplete");
+});
+
+test("the key prompt names where to get one when the provider has a keyUrl", async () => {
+  const io = fakeIO(["", "", "sk-typed-123", ""]); // yes to AI, provider Enter (anthropic), key, save? no
+  await resolveAiPlan({}, io, {});
+  assert.ok(
+    io.output.some((l) => l.includes("console.anthropic.com/settings/keys")),
+    "the anthropic keyUrl should appear in the API key prompt",
+  );
 });
 
 test("non-interactive custom with base-url and model enables", async () => {

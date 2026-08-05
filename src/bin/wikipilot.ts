@@ -119,7 +119,7 @@ program
   .option("--no-skill", "skip scaffolding the .claude/skills/update-wiki sync skill")
   .option("--ai", "run the AI deep-investigation pass (needs an API key — Anthropic by default)")
   .option("--no-ai", "skip the AI pass and the prompt for it")
-  .option("--model <name>", `model for the AI pass (default ${DEFAULT_INIT_MODEL}, or WIKI_INIT_MODEL)`)
+  .option("--model <name>", `model for the AI pass (default ${DEFAULT_INIT_MODEL}, or WIKI_INIT_MODEL on the Claude provider)`)
   .option("--provider <name>", "AI provider for the investigation: anthropic | openai | gemini | custom (default anthropic)")
   .option("--base-url <url>", "OpenAI-compatible endpoint for --provider custom")
   .action(async (target: string, opts: { out: string; preset?: string; siteName?: string; yes?: boolean; skill: boolean; ai?: boolean; model?: string; provider?: string; baseUrl?: string }) => {
@@ -168,7 +168,11 @@ program
           console.error(`wikipilot: AI pass failed (${(err as Error).message}) — the drafted wiki is intact.`);
         }
       } else if (opts.ai === true && !plan.enabled) {
-        console.log(`wikipilot: --ai requested but no ${PROVIDERS[plan.provider].envVar} found — wrote the mechanical draft only.`);
+        if (plan.disabledReason === "custom-incomplete") {
+          console.log("wikipilot: --ai requested but --provider custom needs both --base-url and --model — wrote the mechanical draft only.");
+        } else {
+          console.log(`wikipilot: --ai requested but no ${PROVIDERS[plan.provider].envVar} found — wrote the mechanical draft only.`);
+        }
       }
 
       const outFlag = opts.out === "./wiki" ? "" : ` ${short(result.wikiDir)}`;

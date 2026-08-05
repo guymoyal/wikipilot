@@ -88,6 +88,12 @@ export interface AiPlan {
   apiKey?: string;
   /** The user asked for a freshly-typed key to be persisted to the repo's .env. */
   saveKey: boolean;
+  /**
+   * Why `enabled` is false, when it's worth naming: lets the CLI report the
+   * real cause instead of defaulting to "no API key found" for every case.
+   * Absent when the user simply declined, or `enabled` is true.
+   */
+  disabledReason?: "custom-incomplete";
 }
 
 /** Commander tri-state: `--ai` → true, `--no-ai` → false, neither → undefined. */
@@ -151,7 +157,7 @@ export async function resolveAiPlan(
     const key = env[PROVIDERS[provider].envVar];
     if (!key) return { enabled: false, provider, saveKey: false };
     if (provider === "custom" && !(options.baseUrl && options.model)) {
-      return { enabled: false, provider, saveKey: false };
+      return { enabled: false, provider, saveKey: false, disabledReason: "custom-incomplete" };
     }
 
     return {
@@ -177,11 +183,12 @@ export async function resolveAiPlan(
   let baseUrl: string | undefined;
   let model: string | undefined;
   if (provider === "custom") {
-    const typedBaseUrl = (await io.ask("  OpenAI-compatible base URL: ")).trim();
-    const typedModel = (await io.ask("  Model name: ")).trim();
+    // A flag already answers the question — don't make the user retype it.
+    const typedBaseUrl = options.baseUrl?.trim() || (await io.ask("  OpenAI-compatible base URL: ")).trim();
+    const typedModel = options.model?.trim() || (await io.ask("  Model name: ")).trim();
     if (!typedBaseUrl || !typedModel) {
       io.print("  Both a base URL and a model are required for a custom provider — keeping the mechanical draft.");
-      return { enabled: false, provider, saveKey: false };
+      return { enabled: false, provider, saveKey: false, disabledReason: "custom-incomplete" };
     }
     baseUrl = typedBaseUrl;
     model = typedModel;
@@ -192,7 +199,8 @@ export async function resolveAiPlan(
   const envKey = env[info.envVar];
   if (envKey) return { enabled: true, provider, apiKey: envKey, saveKey: false, ...extra };
 
-  io.print(`  This needs an API key (it will be read as ${info.envVar}).`);
+  const whereToGetOne = info.keyUrl ? ` — get one at ${info.keyUrl}` : "";
+  io.print(`  This needs an API key (it will be read as ${info.envVar})${whereToGetOne}.`);
   const typed = (await io.ask("  Paste your API key: ")).trim();
   if (!typed) {
     io.print("  No key — keeping the mechanical draft. Re-run with a key to upgrade it.");
